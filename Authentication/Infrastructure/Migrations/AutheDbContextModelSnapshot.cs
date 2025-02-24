@@ -359,7 +359,7 @@ namespace Infrastructure.Migrations
                             CreateDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             FailedLoginAmountBeforeCaptcha = (short)3,
                             LockTimeInterval = 300,
-                            LockType = (short)0,
+                            LockType = (short)5,
                             ModifyDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified)
                         },
                         new
@@ -370,7 +370,7 @@ namespace Infrastructure.Migrations
                             CreateDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             FailedLoginAmountBeforeCaptcha = (short)3,
                             LockTimeInterval = 100,
-                            LockType = (short)0,
+                            LockType = (short)5,
                             ModifyDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified)
                         });
                 });
@@ -602,7 +602,7 @@ namespace Infrastructure.Migrations
                             CreateDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             LockEndDateTime = new DateTime(2024, 1, 1, 12, 0, 0, 0, DateTimeKind.Utc),
                             LockStartDateTime = new DateTime(2024, 1, 1, 12, 0, 0, 0, DateTimeKind.Utc),
-                            LockTypes = 0,
+                            LockTypes = 5,
                             ModifyDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             UserId = 1L
                         },
@@ -612,7 +612,7 @@ namespace Infrastructure.Migrations
                             CreateDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             LockEndDateTime = new DateTime(2024, 1, 1, 12, 0, 0, 0, DateTimeKind.Utc),
                             LockStartDateTime = new DateTime(2024, 1, 1, 12, 0, 0, 0, DateTimeKind.Utc),
-                            LockTypes = 0,
+                            LockTypes = 5,
                             ModifyDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             UserId = 2L
                         });

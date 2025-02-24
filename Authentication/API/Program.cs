@@ -1,11 +1,9 @@
 
 using Authenitcation.Infrastructure.Repositories;
 using Authentication.Application;
-using Authentication.Domain.Repositories;
 using Authentication.Infrastructure.Repositories;
 using Data;
-using Microsoft.Build.Framework;
-using Microsoft.EntityFrameworkCore;
+
 using Microsoft.Extensions.Options;
 using Authentication.Application;
 
@@ -13,7 +11,6 @@ using Authentication.Application;
 var builder = WebApplication.CreateBuilder(args);
 
 
-builder.Services.AddOpenApi();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddControllers();
 builder.Services.AddSwaggerGen();

@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Infrastructure.Migrations
 {
     [DbContext(typeof(AutheDbContext))]
-    [Migration("20250224095226_Seeding_Hamid")]
-    partial class Seeding_Hamid
+    [Migration("20250224174543_Seed")]
+    partial class Seed
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -362,7 +362,7 @@ namespace Infrastructure.Migrations
                             CreateDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             FailedLoginAmountBeforeCaptcha = (short)3,
                             LockTimeInterval = 300,
-                            LockType = (short)0,
+                            LockType = (short)5,
                             ModifyDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified)
                         },
                         new
@@ -373,7 +373,7 @@ namespace Infrastructure.Migrations
                             CreateDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             FailedLoginAmountBeforeCaptcha = (short)3,
                             LockTimeInterval = 100,
-                            LockType = (short)0,
+                            LockType = (short)5,
                             ModifyDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified)
                         });
                 });
@@ -605,7 +605,7 @@ namespace Infrastructure.Migrations
                             CreateDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             LockEndDateTime = new DateTime(2024, 1, 1, 12, 0, 0, 0, DateTimeKind.Utc),
                             LockStartDateTime = new DateTime(2024, 1, 1, 12, 0, 0, 0, DateTimeKind.Utc),
-                            LockTypes = 0,
+                            LockTypes = 5,
                             ModifyDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             UserId = 1L
                         },
@@ -615,7 +615,7 @@ namespace Infrastructure.Migrations
                             CreateDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             LockEndDateTime = new DateTime(2024, 1, 1, 12, 0, 0, 0, DateTimeKind.Utc),
                             LockStartDateTime = new DateTime(2024, 1, 1, 12, 0, 0, 0, DateTimeKind.Utc),
-                            LockTypes = 0,
+                            LockTypes = 5,
                             ModifyDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             UserId = 2L
                         });

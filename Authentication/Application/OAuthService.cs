@@ -5,10 +5,7 @@ using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
-using Authentication.Domain.Entities;
-using Authentication.Domain.Enums;
-using Authentication.Domain.Repositories;
-using Microsoft.VisualBasic;
+
 
 namespace Authentication.Application
 {
@@ -59,72 +56,58 @@ namespace Authentication.Application
 public async Task<string> LoginAsync(string username, string password, string authenticationCode)
 {
     var user = await _userRepo.GetByUsernameAsync(username);
-    if (user == null)
-        throw new AuthenticationException("No user found");
-
-    // var loginPolicy = await _userRepo.GetLoginPoliciesByUserID(user.Id.ToString());
-    // if (loginPolicy != null && loginPolicy.LockTypes != LockTypes.None)
-    // {
-    //     string lockMessage = loginPolicy.LockTypes switch
-    //     {
-    //         LockTypes.TemporaryLock => "Your account is temporarily locked. Please try again later.",
-    //         LockTypes.PermanentLock => "Your account has been permanently locked. Contact support.",
-    //         LockTypes.ExpiringLock => "Your account is locked and will expire soon.",
-    //         LockTypes.ConditionalLock => "Your account is locked due to policy restrictions.",
-    //         _ => "Your account is locked."
-    //     };
-    //     if(!string.IsNullOrEmpty(lockMessage))
-    //         throw new AuthenticationException(lockMessage);
-    // }
-
-
-    if (password != user.UserProperty.Password)
+    if (user == null || user.UerPropery.Password != password)
     {
-        throw new AuthenticationException("password is incorrect");
-    }
-        // user.IncrementLoginAttempt();
-        // await _userRepo.SaveChangesAsync();
-
-    if(user.TwoFactorEnabled)
-    {
-        throw new AuthenticationException("need phoneNumber");
-    }
-
-
-    // Validate authentication code from stored dictionary
-    // Validate the authentication code received from the user
-    if(!_authCodes.ContainsKey(authenticationCode))
-    {
+        if(!_authCodes.ContainsKey(authenticationCode))
+        {
         throw new AuthenticationException("Invalid Authentication code");
-    }
+        }
 
-        // Remove used authentication code to prevent reuse
+        if(!user.TwoFactorEnabled)
+        {
+
+
         _authCodes.TryRemove(authenticationCode, out _);
-            var accessToken = GenerateAccessToken(user);
+            var token = GenerateAccessToken(user);
 
-        return accessToken;
+            return new AuthResult {
+                Success = false, Token = token
+            };
+        }
+        }
+
+
+        var otpCode = _otpService.GenerateOtp(user.Id);
+        _otpService.SendOtpAsync(user.PhoneNumber, otpCode);
+
+        return new AuthResult {
+            Success = false, Message = "Otp Required", user.TwoFactorEnabled == true
+        };
+
+
 
 }
-    public async Task<string> LoginWithTwoFactor (string otprecieved, string phoneNumber)
+
+    public async Task<AuthResult> VerifyOtpAsync(string username, string otpCode)
     {
-        var user = await _userRepo.GetUserByPhoneNumber(phoneNumber);
-        if(!user.TwoFactorEnabled )
-            return GenerateAccessToken(user);
+        var user = await _userRepo.GetByUsernameAsync(username);
+        if (user == null)
+            return new AuthResult{Success == false,  Message = "user not found"};
 
-
-        if(string.IsNullOrEmpty(phoneNumber) || string.IsNullOrEmpty(otprecieved))
+        if(_otpService.ValidateOtp(user.Id, otpCode))
         {
-            throw new AuthenticationException("OTP validation failed");
+            var token = GenerateAccessToken(user);
+            return new AuthResult{
+                Success = true, Token =token
+            };
         }
-        // Validate OTP if necessary
-        string  otpGenerate =  await _otpService.GenerateOTPAsync(phoneNumber, 6);
-         _otpService.ValidateOTP(otprecieved, otpGenerate);
-
-
-        var accessToken = GenerateAccessToken(user);
-
-        return accessToken;
+        return new AuthResult {
+            Success = false, Message = "Invalid oTp"
+        };
     }
+
+
+
 
 private string GenerateAccessToken(User user)
 {
@@ -133,4 +116,12 @@ private string GenerateAccessToken(User user)
 
 
     }
+}
+
+public class AutheResult
+{
+    public bool Success {get;set;}
+    public string Token {get;set;}
+    public string Message {get;set;}
+    public bool TwoFactorRequired {get;set;}
 }

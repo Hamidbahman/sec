@@ -10,7 +10,7 @@ public class AutheDbContextFactory : IDesignTimeDbContextFactory<AutheDbContext>
     public AutheDbContext CreateDbContext(string[] args)
     {
         var optionsBuilder = new DbContextOptionsBuilder<AutheDbContext>();
-        optionsBuilder.UseSqlServer("Server=SAHAND\\MSSQLSERVER2022;Database=SecuritySystem;User ID=Developer;Password=1qaz!QAZ;Encrypt=True;TrustServerCertificate=True;");
+        optionsBuilder.UseSqlServer("Server=REVISION-PC\\HAMI;Database=Authentication;Integrated Security=True;TrustServerCertificate=True;");
 
         return new AutheDbContext(optionsBuilder.Options);
     }
