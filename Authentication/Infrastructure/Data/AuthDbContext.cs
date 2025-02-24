@@ -1,5 +1,6 @@
 
 using Authentication.Domain.Entities;
+using Authentication.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace Data;
@@ -571,7 +572,7 @@ public class AutheDbContext : DbContext
                 picture: null,
                 pictureType: null,
                 scheduled: "00:00-23:59",
-                twoFactorEnabled: true
+                twoFactorEnabled: false
             ));
             #endregion
 
@@ -632,6 +633,126 @@ public class AutheDbContext : DbContext
                 id: 1,
                 lockTypes: Authentication.Domain.Enums.LockTypes.None, // Ensure this enum exists and is handled correctly
                 userId: 1, // Ensure a User with this ID exists
+                lockStartDateTime: new DateTime(2024, 1, 1, 12, 0,0, DateTimeKind.Utc),
+                lockEndDateTime: new DateTime(2024, 1, 1, 12, 0,0, DateTimeKind.Utc) // Example: 30-minute lock
+            ));
+
+
+            #endregion
+
+
+            
+
+
+            #region SeedApplication
+            modelBuilder.Entity<Application>().HasData(new Application(
+                configurationPassword: null, // Adjust as needed
+                configurationLocks: new List<ConfigurationLock>(),
+                configurationSession: null, // Adjust as needed
+                applicationPackages: new List<ApplicationPackage>(),
+                roles: new List<Role>(),
+                id: 2,
+                title: "Sample App",
+                clientId: "client-id",
+                redirectUrls: "https://example.com/callback",
+                clientScope: "read write",
+                clientSecret: "secret",
+                authenticateGrantType: "password",
+                ipRange: "192.168.1.1/24",
+                isAutoApprove: true,
+                scheduled: "daily",
+                status: 2,
+                lockEnabled: false,
+                description: "This is a sample application"
+            ));
+
+            #endregion
+
+
+
+
+            #region SeedUser
+            modelBuilder.Entity<User>().HasData(new User(
+                userProperty: null, // Adjust as needed
+                loginPolicy: null, // Adjust as needed
+                userBiometric: null, // Adjust as needed
+                userRoles: new List<UserRole>(),
+                username: "Hamid",
+                id: 2,
+                uuid: "dfgjoi;sdjgsdopfi",
+                firstName: "Hamid",
+                lastName: "Ba",
+                nationalCode: "1234567890",
+                email: "hamid.ba@gmail.com",
+                phoneNumber: "+989389074038",
+                description: "Default admin user",
+                privateKey: null,
+                ipRange: "0.0.0.0",
+                loginAttempt: 0,
+                picture: null,
+                pictureType: null,
+                scheduled: "00:00-23:59",
+                twoFactorEnabled: true
+            ));
+            #endregion
+
+
+            #region SeedUserProps
+            modelBuilder.Entity<UserProperty>().HasData(new UserProperty(
+                userId: 2, // Ensure this matches an existing User ID
+                password: "22334455", // Replace with a properly hashed password
+                configurationPasswordId: 2 // Ensure this matches an existing ConfigurationPassword ID
+            ));
+
+            #endregion
+
+
+            #region SeedConfigurationPassword
+
+            modelBuilder.Entity<ConfigurationPassword>().HasData(new ConfigurationPassword(
+                userProperties: new List<UserProperty>(), // Empty list as seeding relationships must be handled separately
+                id: 2,
+                isComplex: true,
+                mustBeChangedInFirstLogin: true,
+                mustContainChar: true,
+                mustContainUpperCase: true,
+                isPolicyNeeded: true,
+                minPassLength: 8,
+                maxPassLength: 16,
+                numericPassNotEqual: 3,
+                willPassExpire: true,
+                expireDaysAmount: 90,
+                redirectToCustomUrlAfterChangePass: false,
+                urlAfterChangePass: "",
+                applicationId: 2, // Ensure this matches an existing Application ID
+                twoFactorEnabled: true
+            ));
+
+            #endregion
+
+
+
+
+            #region SeedConfigurationLock
+
+            modelBuilder.Entity<ConfigurationLock>().HasData(new ConfigurationLock(
+                id: 2,
+                captchaNeeded: false,
+                failedLoginAmountBeforeCaptcha: 3,
+                lockTimeInterval: 100, // Example: 5 minutes lock time
+                lockType: Authentication.Domain.Enums.LockTypes.None, // Ensure this enum exists
+                applicationId: 2 // Ensure this ApplicationId exists in the Application table
+            ));
+
+            #endregion
+
+
+
+            #region SeedLockPolicy
+            modelBuilder.Entity<LoginPolicy>().HasData(new LoginPolicy(
+                id: 2,
+                lockTypes: LockTypes.None, // Ensure this enum exists and is handled correctly
+                userId: 2, // Ensure a User with this ID exists
                 lockStartDateTime: new DateTime(2024, 1, 1, 12, 0,0, DateTimeKind.Utc),
                 lockEndDateTime: new DateTime(2024, 1, 1, 12, 0,0, DateTimeKind.Utc) // Example: 30-minute lock
             ));

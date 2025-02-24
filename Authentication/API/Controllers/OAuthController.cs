@@ -1,91 +1,8 @@
-// using System.Threading.Tasks;
-// using Authentication.Application;
-// using Microsoft.AspNetCore.Mvc;
-
-// namespace Authentication.API.Controllers
-// {
-//     [Route("api/[controller]")]
-//     [ApiController]
-//     public class OAuthController : ControllerBase
-//     {
-//         private readonly OAuthService _authService;
-
-//         public OAuthController(OAuthService authService)
-//         {
-//             _authService = authService;
-//         }
-
-//         [HttpPost("authorize")]
-//         public async Task<IActionResult> GenerateAuthorizationCode([FromBody] AuthRequestDto request)
-//         {
-//             var authCode = await _authService.GenerateAuthorizationCodeAsync(request.ClientId, request.ClientSecret);
-//             if (authCode == null)
-//                 return Unauthorized(new { message = "Invalid client credentials." });
-
-//             return Ok(new { authorizationCode = authCode });
-//         }
-
-//         [HttpPost("login")]
-//         public async Task<IActionResult> Login([FromBody] LoginRequestDto request)
-//         {
-//             var (isSuccess, requiresRecaptcha, requiresTwoFactor, tokens) = 
-//                 await _authService.LoginAsync(request.Username, request.Password, request.AuthorizationCode, request.RecaptchaResponse, request.TwoFactorCode);
-
-//             if (!isSuccess)
-//             {
-//                 if (requiresRecaptcha)
-//                     return BadRequest(new { message = "Recaptcha required.", requiresRecaptcha = true });
-
-//                 if (requiresTwoFactor)
-//                     return BadRequest(new { message = "Two-factor authentication required.", requiresTwoFactor = true });
-
-//                 return Unauthorized(new { message = "Invalid credentials." });
-//             }
-
-//             return Ok(new { accessToken = tokens?.accessToken, refreshToken = tokens?.refreshToken });
-//         }
-
-//         [HttpPost("validate-otp")]
-//         public async Task<IActionResult> ValidateOtp([FromBody] OtpValidationRequestDto request)
-//         {
-//             try
-//             {
-//                 var accessToken = await _authService.ValidateAndGenerateTokensAsync(request.OtpCode, request.PhoneNumber);
-//                 return Ok(new { accessToken });
-//             }
-//             catch (UnauthorizedAccessException ex)
-//             {
-//                 return Unauthorized(new { message = ex.Message });
-//             }
-//         }
-//     }
-// }
-
-
-//     public class AuthRequestDto
-//     {
-//         public string ClientId { get; set; } = string.Empty;
-//         public string ClientSecret { get; set; } = string.Empty;
-//     }
-
-//     public class LoginRequestDto
-//     {
-//         public string Username { get; set; } = string.Empty;
-//         public string Password { get; set; } = string.Empty;
-//         public string AuthorizationCode { get; set; } = string.Empty;
-//         public string? RecaptchaResponse { get; set; }
-//         public string? TwoFactorCode { get; set; }
-//     }
-
-//     public class OtpValidationRequestDto
-//     {
-//         public string OtpCode { get; set; } = string.Empty;
-//         public string PhoneNumber { get; set; } = string.Empty;
-//     }
-
+using System;
 using System.Security.Authentication;
 using System.Threading.Tasks;
 using Authentication.Application;
+using Authentication.Domain.Repositories;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Authentication.API.Controllers
@@ -94,64 +11,82 @@ namespace Authentication.API.Controllers
     [ApiController]
     public class OAuthController : ControllerBase
     {
-        private readonly OAuthService _authService;
+        private readonly OAuthService _oAuthService;
 
-        public OAuthController(OAuthService authService)
+        public OAuthController(OAuthService oAuthService)
         {
-            _authService = authService;
+            _oAuthService = oAuthService;
         }
 
-[HttpPost("authorize")]
-public async Task<IActionResult> GenerateAuthorizationCode([FromBody] AuthRequestDto request)
-{
-    try
-    {
-        var authCode = await _authService.GenerateAuthorizationCodeAsync(
-            request.ClientId, 
-            request.ClientSecret, 
-            request.CaptchaResponse
-        );
+        /// <summary>
+        /// Generates an authorization code.
+        /// </summary>
+        [HttpPost("generate-auth-code")]
+        public async Task<IActionResult> GenerateAuthorizationCode([FromBody] AuthCodeRequest request)
+        {
+            var authCode = await _oAuthService.GenerateAuthorizationCodeAsync(
+                request.ClientId, 
+                request.ClientSecret, 
+                request.CaptchaToken
+            );
 
-        if (authCode == null)
-            return Unauthorized(new { message = "Invalid client credentials." });
+            if (authCode == null)
+                return Unauthorized("Invalid client credentials");
 
-        if (authCode == "InvalidCaptcha")
-            return BadRequest(new { message = "Invalid CAPTCHA.", requiresCaptcha = true });
+            if (authCode == "InvalidCaptcha")
+                return BadRequest("Captcha validation failed");
 
-        if (authCode.StartsWith("captcha_")) // Assuming CAPTCHA tokens have a prefix
-            return BadRequest(new { message = "CAPTCHA required.", captchaToken = authCode });
+            return Ok(new { AuthorizationCode = authCode });
+        }
 
-        return Ok(new { authorizationCode = authCode });
-    }
-    catch (Exception ex)
-    {
-        return StatusCode(500, new { message = "An unexpected error occurred.", error = ex.Message });
-    }
-}
-
-
-
+        /// <summary>
+        /// Logs in a user.
+        /// </summary>
         [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginRequestDto request)
+        public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
-            var result = await _authService.LoginAsync(request.Username, request.Password, request.AuthorizationCode);
+            try
+            {
+                var accessToken = await _oAuthService.LoginAsync(
+                    request.Username, 
+                    request.Password, 
+                    request.AuthenticationCode, 
+                    request.OTPReceived, 
+                    request.PhoneNumber
+                );
 
-
-            return Ok(new { accessToken = result.accessToken, refreshToken = result.refreshToken });
+                return Ok(new { AccessToken = accessToken });
+            }
+            catch (AuthenticationException ex)
+            {
+                return Unauthorized(new { Error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Error = ex.Message });
+            }
         }
     }
-}
 
-public class AuthRequestDto
-{
-    public string ClientId { get; set; } = string.Empty;
-    public string ClientSecret { get; set; } = string.Empty;
-    public string? CaptchaResponse {get;set;}
-}
+    /// <summary>
+    /// Request model for generating an authorization code.
+    /// </summary>
+    public class AuthCodeRequest
+    {
+        public string ClientId { get; set; }
+        public string ClientSecret { get; set; }
+        public string? CaptchaToken { get; set; }
+    }
 
-public class LoginRequestDto
-{
-    public string Username { get; set; } = string.Empty;
-    public string Password { get; set; } = string.Empty;
-    public string AuthorizationCode { get; set; } = string.Empty;
+    /// <summary>
+    /// Request model for login.
+    /// </summary>
+    public class LoginRequest
+    {
+        public string Username { get; set; }
+        public string Password { get; set; }
+        public string AuthenticationCode { get; set; }
+        public string? OTPReceived { get; set; } = string.Empty;
+        public string? PhoneNumber { get; set; } = string.Empty;
+    }
 }

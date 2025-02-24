@@ -224,6 +224,24 @@ namespace Infrastructure.Migrations
                             Scheduled = "daily",
                             Status = (short)1,
                             Title = "Sample App"
+                        },
+                        new
+                        {
+                            Id = 2L,
+                            AuthenticateGrantType = "password",
+                            ClientId = "client-id",
+                            ClientScope = "read write",
+                            ClientSecret = "secret",
+                            CreateDate = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Description = "This is a sample application",
+                            IpRange = "192.168.1.1/24",
+                            IsAutoApprove = true,
+                            LockEnabled = false,
+                            ModifyDate = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            RedirectUrls = "https://example.com/callback",
+                            Scheduled = "daily",
+                            Status = (short)2,
+                            Title = "Sample App"
                         });
                 });
 
@@ -343,6 +361,17 @@ namespace Infrastructure.Migrations
                             LockTimeInterval = 300,
                             LockType = (short)0,
                             ModifyDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified)
+                        },
+                        new
+                        {
+                            Id = 2L,
+                            ApplicationId = 2L,
+                            CaptchaNeeded = false,
+                            CreateDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            FailedLoginAmountBeforeCaptcha = (short)3,
+                            LockTimeInterval = 100,
+                            LockType = (short)0,
+                            ModifyDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified)
                         });
                 });
 
@@ -431,6 +460,26 @@ namespace Infrastructure.Migrations
                         {
                             Id = 1L,
                             ApplicationId = 1L,
+                            CreateDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            ExpireDaysAmount = (short)90,
+                            IsComplex = true,
+                            IsPolicyNeeded = true,
+                            MaxPassLength = (short)16,
+                            MinPassLength = (short)8,
+                            ModifyDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            MustBeChangedInFirstLogin = true,
+                            MustContainChar = true,
+                            MustContainUpperCase = true,
+                            NumericPassNotEqual = (short)3,
+                            RedirectToCustomUrlAfterChangePass = false,
+                            TwoFactorEnabled = true,
+                            UrlAfterChangePass = "",
+                            WillPassExpire = true
+                        },
+                        new
+                        {
+                            Id = 2L,
+                            ApplicationId = 2L,
                             CreateDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             ExpireDaysAmount = (short)90,
                             IsComplex = true,
@@ -556,6 +605,16 @@ namespace Infrastructure.Migrations
                             LockTypes = 0,
                             ModifyDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             UserId = 1L
+                        },
+                        new
+                        {
+                            Id = 2L,
+                            CreateDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            LockEndDateTime = new DateTime(2024, 1, 1, 12, 0, 0, 0, DateTimeKind.Utc),
+                            LockStartDateTime = new DateTime(2024, 1, 1, 12, 0, 0, 0, DateTimeKind.Utc),
+                            LockTypes = 0,
+                            ModifyDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            UserId = 2L
                         });
                 });
 
@@ -919,9 +978,27 @@ namespace Infrastructure.Migrations
                             NationalCode = "1234567890",
                             PhoneNumber = "+1234567890",
                             Scheduled = "00:00-23:59",
-                            TwoFactorEnabled = true,
+                            TwoFactorEnabled = false,
                             Username = "admin",
                             Uuid = "43t8haoghaioergh"
+                        },
+                        new
+                        {
+                            Id = 2L,
+                            CreateDate = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Description = "Default admin user",
+                            Email = "hamid.ba@gmail.com",
+                            FirstName = "Hamid",
+                            IpRange = "0.0.0.0",
+                            LastName = "Ba",
+                            LoginAttempt = 0,
+                            ModifyDate = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            NationalCode = "1234567890",
+                            PhoneNumber = "+989389074038",
+                            Scheduled = "00:00-23:59",
+                            TwoFactorEnabled = true,
+                            Username = "Hamid",
+                            Uuid = "dfgjoi;sdjgsdopfi"
                         });
                 });
 
@@ -998,6 +1075,12 @@ namespace Infrastructure.Migrations
                             UserId = 1L,
                             ConfigurationPasswordId = 1L,
                             Password = "123123123"
+                        },
+                        new
+                        {
+                            UserId = 2L,
+                            ConfigurationPasswordId = 2L,
+                            Password = "22334455"
                         });
                 });
 

@@ -3,10 +3,12 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
+#pragma warning disable CA1814 // Prefer jagged arrays over multidimensional
+
 namespace Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class Seeding_Hamid : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -591,32 +593,56 @@ namespace Infrastructure.Migrations
             migrationBuilder.InsertData(
                 table: "tbApplication",
                 columns: new[] { "Id", "AuthenticateGrantType", "ClientId", "ClientScope", "ClientSecret", "CreateDate", "DeleteDate", "DeleteUser", "Description", "IpRange", "IsAutoApprove", "LockEnabled", "ModifyDate", "ModifyUser", "RedirectUrls", "Scheduled", "Status", "Title" },
-                values: new object[] { 1L, "password", "sample-client-id", "read write", "secret", new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), null, null, "This is a sample application", "192.168.1.1/24", true, false, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), null, "https://example.com/callback", "daily", (short)1, "Sample App" });
+                values: new object[,]
+                {
+                    { 1L, "password", "sample-client-id", "read write", "secret", new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), null, null, "This is a sample application", "192.168.1.1/24", true, false, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), null, "https://example.com/callback", "daily", (short)1, "Sample App" },
+                    { 2L, "password", "client-id", "read write", "secret", new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), null, null, "This is a sample application", "192.168.1.1/24", true, false, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), null, "https://example.com/callback", "daily", (short)2, "Sample App" }
+                });
 
             migrationBuilder.InsertData(
                 table: "tbUser",
                 columns: new[] { "Id", "CreateDate", "DeleteDate", "DeleteUser", "Description", "Email", "FirstName", "IpRange", "LastName", "LoginAttempt", "ModifyDate", "ModifyUser", "NationalCode", "PhoneNumber", "Picture", "PictureType", "PrivateKey", "Scheduled", "TwoFactorEnabled", "Username", "Uuid" },
-                values: new object[] { 1L, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), null, null, "Default admin user", "admin@example.com", "Admin", "0.0.0.0", "User", 0, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), null, "1234567890", "+1234567890", null, null, null, "00:00-23:59", true, "admin", "43t8haoghaioergh" });
+                values: new object[,]
+                {
+                    { 1L, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), null, null, "Default admin user", "admin@example.com", "Admin", "0.0.0.0", "User", 0, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), null, "1234567890", "+1234567890", null, null, null, "00:00-23:59", false, "admin", "43t8haoghaioergh" },
+                    { 2L, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), null, null, "Default admin user", "hamid.ba@gmail.com", "Hamid", "0.0.0.0", "Ba", 0, new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), null, "1234567890", "+989389074038", null, null, null, "00:00-23:59", true, "Hamid", "dfgjoi;sdjgsdopfi" }
+                });
 
             migrationBuilder.InsertData(
                 table: "tbConfigurationLock",
                 columns: new[] { "Id", "ApplicationId", "CaptchaNeeded", "CreateDate", "DeleteDate", "DeleteUser", "FailedLoginAmountBeforeCaptcha", "LockTimeInterval", "LockType", "ModifyDate", "ModifyUser" },
-                values: new object[] { 1L, 1L, true, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, null, (short)3, 300, (short)0, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null });
+                values: new object[,]
+                {
+                    { 1L, 1L, true, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, null, (short)3, 300, (short)0, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null },
+                    { 2L, 2L, false, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, null, (short)3, 100, (short)0, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null }
+                });
 
             migrationBuilder.InsertData(
                 table: "tbConfigurationPassword",
                 columns: new[] { "Id", "ApplicationId", "CreateDate", "DeleteDate", "DeleteUser", "ExpireDaysAmount", "IsComplex", "IsPolicyNeeded", "MaxPassLength", "MinPassLength", "ModifyDate", "ModifyUser", "MustBeChangedInFirstLogin", "MustContainChar", "MustContainUpperCase", "NumericPassNotEqual", "RedirectToCustomUrlAfterChangePass", "TwoFactorEnabled", "UrlAfterChangePass", "WillPassExpire" },
-                values: new object[] { 1L, 1L, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, null, (short)90, true, true, (short)16, (short)8, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, true, true, true, (short)3, false, true, "", true });
+                values: new object[,]
+                {
+                    { 1L, 1L, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, null, (short)90, true, true, (short)16, (short)8, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, true, true, true, (short)3, false, true, "", true },
+                    { 2L, 2L, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, null, (short)90, true, true, (short)16, (short)8, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, true, true, true, (short)3, false, true, "", true }
+                });
 
             migrationBuilder.InsertData(
                 table: "tbLoginPolicy",
                 columns: new[] { "Id", "CreateDate", "DeleteDate", "DeleteUser", "LockEndDateTime", "LockStartDateTime", "LockTypes", "ModifyDate", "ModifyUser", "UserId" },
-                values: new object[] { 1L, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, null, new DateTime(2024, 1, 1, 12, 0, 0, 0, DateTimeKind.Utc), new DateTime(2024, 1, 1, 12, 0, 0, 0, DateTimeKind.Utc), 0, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, 1L });
+                values: new object[,]
+                {
+                    { 1L, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, null, new DateTime(2024, 1, 1, 12, 0, 0, 0, DateTimeKind.Utc), new DateTime(2024, 1, 1, 12, 0, 0, 0, DateTimeKind.Utc), 0, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, 1L },
+                    { 2L, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, null, new DateTime(2024, 1, 1, 12, 0, 0, 0, DateTimeKind.Utc), new DateTime(2024, 1, 1, 12, 0, 0, 0, DateTimeKind.Utc), 0, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, 2L }
+                });
 
             migrationBuilder.InsertData(
                 table: "tbUserProperty",
                 columns: new[] { "UserId", "ConfigurationPasswordId", "Password" },
-                values: new object[] { 1L, 1L, "123123123" });
+                values: new object[,]
+                {
+                    { 1L, 1L, "123123123" },
+                    { 2L, 2L, "22334455" }
+                });
 
             migrationBuilder.CreateIndex(
                 name: "IX_tbActee_ApplicationPackageId",

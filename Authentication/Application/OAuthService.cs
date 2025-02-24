@@ -1,177 +1,6 @@
-// using System;
-// using System.Collections.Concurrent;
-// using System.Security.Authentication;
-// using System.Security.Cryptography;
-// using System.Text;
-// using System.Threading.Tasks;
-// using Authentication.Domain.Entities;
-// using Authentication.Domain.Enums;
-// using Authentication.Domain.Repositories;
-
-// namespace Authentication.Application
-// {
-//     public class OAuthService
-//     {
-//         private readonly IApplicationRepository _applicationRepository;
-//         private readonly IUserRepository _userRepo;
-//         private readonly RecaptchaService _recaptchaService;
-//         private readonly OTPService _otpService;
-//         private static readonly ConcurrentDictionary<string, string> _authCodes = new();
-
-//         public OAuthService(
-//             OTPService otpService,
-//             RecaptchaService recaptchaService,
-//             IApplicationRepository applicationRepository,
-//             IUserRepository userRepository)
-//         {
-//             _recaptchaService = recaptchaService;
-//             _applicationRepository = applicationRepository;
-//             _userRepo = userRepository;
-//             _otpService = otpService;
-//         }
-
-//         public async Task<string?> GenerateAuthorizationCodeAsync(string clientId, string clientSecret)
-//         {
-//             var application = await _applicationRepository.GetApplicationByClientIdAsync(clientId);
-//             if (application == null || clientSecret != application.ClientSecret)
-//                 return null;
-
-//             var configLock = await _applicationRepository.GetConfigurationLockAsync(clientId);
-//             if (configLock?.CaptchaNeeded == true)
-//                 return null;
-
-//             string authCode = Guid.NewGuid().ToString();
-//             _authCodes.TryAdd(authCode, clientId);
-//             return authCode;
-//         }
-
-//         public async Task<(bool IsSuccess, bool RequiresRecaptcha, bool RequiresTwoFactor, (string accessToken, string refreshToken)? Tokens)> 
-//         LoginAsync(string username, string password, string authenticationCode, string? recaptchaResponse = null, string? twoFactorCode = null)
-//         {
-//             if (!_authCodes.TryRemove(authenticationCode, out _))
-//                 throw new AuthenticationException("Invalid or expired authentication code.");
-
-//             var user = await _userRepo.GetByUsernameAsync(username);
-//             if (user == null)
-//                 return (false, false, false, null);
-
-//             var loginPolicy = await _userRepo.GetLoginPoliciesByUserID(user.Id.ToString());
-//             if (loginPolicy != null)
-//             {
-//                 switch (loginPolicy.LockTypes)
-//                 {
-//                     case LockTypes.TemporaryLock:
-//                         throw new AuthenticationException("Your account is temporarily locked. Try again later.");
-//                     case LockTypes.PermanentLock:
-//                         throw new AuthenticationException("Your account has been permanently locked. Please contact support.");
-//                     case LockTypes.ExpiringLock:
-//                         throw new AuthenticationException("Your account is locked due to security reasons. Try again later.");
-//                     case LockTypes.ConditionalLock:
-//                         throw new AuthenticationException("Additional verification is required to access your account.");
-//                 }
-//             }
-
-//             // Secure password verification
-//             if (!VerifyHashedPassword(user.UserProperty.Password, password))
-//             {
-//                 user.IncrementLoginAttempt();
-//                 await _userRepo.SaveChangesAsync();
-
-//                 if (user.LoginAttempt > 5)
-//                 {
-//                     loginPolicy?.SetLockType(LockTypes.TemporaryLock);
-//                     await _userRepo.SaveChangesAsync();
-//                 }
-
-//                 if (user.LoginAttempt < 5)
-//                 {
-//                     bool isHuman = await _recaptchaService.ValidateRecaptchaAsync(recaptchaResponse ?? "");
-//                     if (!isHuman)
-//                         return (false, true, false, null);
-//                 }
-//                 return (false, false, false, null);
-//             }
-
-//             if (user.TwoFactorEnabled && string.IsNullOrEmpty(twoFactorCode))
-//                 return (false, false, true, null);
-
-//             if (user.TwoFactorEnabled)
-//             {
-//                 bool isOtpValid = await _otpService.ValidateTwoFactorCodeAsync(user.PhoneNumber, twoFactorCode!);
-//                 if (!isOtpValid)
-//                     return (false, false, true, null);
-//             }
-
-//             user.ResetLoginAttempt();
-//             await _userRepo.SaveChangesAsync();
-
-//             string accessToken = TokenService.GenerateAccessToken(user);
-//             string refreshToken = TokenService.GenerateRefreshToken();
-//             return (true, false, false, (accessToken, refreshToken));
-//         }
-
-//         public async Task<string> ValidateAndGenerateTokensAsync(string otpCode, string phoneNumber)
-//         {
-//             var user = await _userRepo.GetUserByPhoneNumber(phoneNumber);
-//             if (user == null)
-//                 throw new UnauthorizedAccessException("Invalid phone number.");
-
-//             bool isOtpValid = await _otpService.ValidateTwoFactorCodeAsync(phoneNumber, otpCode);
-//             if (!isOtpValid)
-//                 throw new UnauthorizedAccessException("Invalid OTP.");
-
-//             return TokenService.GenerateAccessToken(user);
-//         }
-
-//         private bool VerifyHashedPassword(string hashedPassword, string providedPassword)
-//         {
-//             using (var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(providedPassword)))
-//             {
-//                 string computedHash = Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes(providedPassword)));
-//                 return computedHash == hashedPassword;
-//             }
-//         }
-//     }
-
-//     public static class TokenService
-//     {
-//         private const int AccessTokenExpiryMinutes = 30;
-
-//         public static string GenerateAccessToken(User user)
-//         {
-//             string payload = $"{user.Username}:{user.Id}:{DateTime.UtcNow.AddMinutes(AccessTokenExpiryMinutes):O}";
-//             return GenerateHmacToken(payload, user.Id.ToString());
-//         }
-
-//         public static string GenerateRefreshToken()
-//         {
-//             return GenerateSecureRandomToken();
-//         }
-
-//         private static string GenerateHmacToken(string data, string secret)
-//         {
-//             using (var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret)))
-//             {
-//                 byte[] hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(data));
-//                 return Convert.ToBase64String(hash);
-//             }
-//         }
-
-//         private static string GenerateSecureRandomToken()
-//         {
-//             byte[] tokenBytes = new byte[32];
-//             using (var rng = RandomNumberGenerator.Create())
-//             {
-//                 rng.GetBytes(tokenBytes);
-//             }
-//             return Convert.ToBase64String(tokenBytes);
-//         }
-//     }
-// }
-
-
 using System;
 using System.Collections.Concurrent;
+using System.Data.Common;
 using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Text;
@@ -187,172 +16,109 @@ namespace Authentication.Application
         private readonly IApplicationRepository _applicationRepository;
         private readonly IUserRepository _userRepo;
         private readonly OTPService _otpService;
+        private readonly OTPService _smsService;
         private readonly CheckboxCaptchaService _checkBox;
         private static readonly ConcurrentDictionary<string, string> _authCodes = new();
 
         public OAuthService(
             CheckboxCaptchaService checkboxCaptchaService,
             OTPService otpService,
+            OTPService smsService,
             IApplicationRepository applicationRepository,
             IUserRepository userRepository)
         {
-
             _checkBox = checkboxCaptchaService;
             _applicationRepository = applicationRepository;
             _userRepo = userRepository;
             _otpService = otpService;
+            _smsService = smsService;
         }
 
-public async Task<string?> GenerateAuthorizationCodeAsync(string clientId, string clientSecret, string? userCaptchaToken = null)
+        public async Task<string?> GenerateAuthorizationCodeAsync(string clientId, string clientSecret, string? userCaptchaToken = null)
+        {
+            var application = await _applicationRepository.GetApplicationByClientIdAsync(clientId);
+            if (application == null || clientSecret != application.ClientSecret)
+                return null;
+
+            var configLock = await _applicationRepository.GetConfigurationLockAsync(clientId);
+            if (configLock.CaptchaNeeded)
+            {
+                if (string.IsNullOrEmpty(userCaptchaToken))
+                    return _checkBox.GenerateCaptchaToken();
+
+                if (!_checkBox.ValidateCaptchaToken(userCaptchaToken))
+                    return "InvalidCaptcha";
+            }
+
+            string authCode = Guid.NewGuid().ToString();
+            _authCodes.TryAdd(authCode, clientId);
+            return authCode;
+        }
+
+public async Task<string> LoginAsync(string username, string password, string authenticationCode, string otprecieved, string phoneNumber)
 {
-    var application = await _applicationRepository.GetApplicationByClientIdAsync(clientId);
-    if (application == null || clientSecret != application.ClientSecret)
-        return null;
+    var user = await _userRepo.GetByUsernameAsync(username);
+    if (user == null)
+        throw new AuthenticationException("No user found");
 
-    var configLock = await _applicationRepository.GetConfigurationLockAsync(clientId);
+    // var loginPolicy = await _userRepo.GetLoginPoliciesByUserID(user.Id.ToString());
+    // if (loginPolicy != null && loginPolicy.LockTypes != LockTypes.None)
+    // {
+    //     string lockMessage = loginPolicy.LockTypes switch
+    //     {
+    //         LockTypes.TemporaryLock => "Your account is temporarily locked. Please try again later.",
+    //         LockTypes.PermanentLock => "Your account has been permanently locked. Contact support.",
+    //         LockTypes.ExpiringLock => "Your account is locked and will expire soon.",
+    //         LockTypes.ConditionalLock => "Your account is locked due to policy restrictions.",
+    //         _ => "Your account is locked."
+    //     };
+    //     if(!string.IsNullOrEmpty(lockMessage))
+    //         throw new AuthenticationException(lockMessage);
+    // }
 
-    if (configLock.CaptchaNeeded)
+
+    if (password != user.UserProperty.Password)
     {
-        // Step 1: If no user token provided, generate and return CAPTCHA
-        if (string.IsNullOrEmpty(userCaptchaToken))
-        {
-            return _checkBox.GenerateCaptchaToken(); // Frontend should display CAPTCHA
-        }
-
-        // Step 2: Validate the CAPTCHA token
-        if (!_checkBox.ValidateCaptchaToken(userCaptchaToken))
-        {
-            return "InvalidCaptcha"; // Frontend should retry CAPTCHA
-        }
+        throw new AuthenticationException("password is in correct");
     }
+        user.IncrementLoginAttempt();
+        _userRepo.SaveChangesAsync();
 
-    // Step 3: Proceed with authentication
-    string authCode = Guid.NewGuid().ToString();
-    _authCodes.TryAdd(authCode, clientId);
-    return authCode;
+
+
+    // Validate authentication code from stored dictionary
+    // Validate the authentication code received from the user
+    if (!_authCodes.TryGetValue(authenticationCode, out _))
+                throw new AuthenticationException("Invalid or expired authentication code");
+
+// Remove used authentication code to prevent reuse
+_authCodes.TryRemove(authenticationCode, out _);
+
+// The code is valid now, proceed with your further logic
+
+
+
+    if(user.TwoFactorEnabled == false)
+        return GenerateAccessToken(user);
+
+
+    // Validate OTP if necessary
+    string  otpGenerate =  await _otpService.GenerateOTPAsync(phoneNumber, 6);
+     _otpService.ValidateOTP(otprecieved, otpGenerate);
+
+
+    // Generate access token after successful validation
+    var accessToken = GenerateAccessToken(user);
+
+    return accessToken;
+}
+
+// Mocked method for access token generation (replace with real implementation)
+private string GenerateAccessToken(User user)
+{
+    return Convert.ToBase64String(Encoding.UTF8.GetBytes($"{user.Id}:{Guid.NewGuid()}"));
 }
 
 
-        public async Task<(string accessToken, string refreshToken)> LoginAsync(string username, string password, string authenticationCode)
-        {
-
-
-            var user = await _userRepo.GetByUsernameAsync(username);
-            if (user == null)
-            {
-                throw new ArgumentNullException("No User found by this username");
-            }
-
-
-            var loginPolicy = await _userRepo.GetLoginPoliciesByUserID(user.Id.ToString());
-            if (loginPolicy != null)
-            {
-                switch (loginPolicy.LockTypes)
-                {
-                    case LockTypes.TemporaryLock:
-                        throw new AuthenticationException("Your account is temporarily locked. Try again later.");
-                    case LockTypes.PermanentLock:
-                        throw new AuthenticationException("Your account has been permanently locked. Please contact support.");
-                    case LockTypes.ExpiringLock:
-                        throw new AuthenticationException("Your account is locked due to security reasons. Try again later.");
-                    case LockTypes.ConditionalLock:
-                        throw new AuthenticationException("Additional verification is required to access your account.");
-                }
-            }
-
-            // Secure password verification
-            if (!VerifyHashedPassword(user.UserProperty.Password, password))
-            {
-                user.IncrementLoginAttempt();
-                await _userRepo.SaveChangesAsync();
-
-                if (user.LoginAttempt > 5)
-                {
-                    loginPolicy?.SetLockType(LockTypes.TemporaryLock);
-                    await _userRepo.SaveChangesAsync();
-                }
-            }
-
-
-            string token = TokenService.GenerateAccessToken(user);
-            string refreshToken = TokenService.GenerateRefreshToken();
-
-            return (token, refreshToken);
-
-            // if (user.TwoFactorEnabled && string.IsNullOrEmpty(twoFactorCode))
-            //     return (false, true, null);
-
-            // if (user.TwoFactorEnabled)
-            // {
-            //     bool isOtpValid = await _otpService.ValidateTwoFactorCodeAsync(user.PhoneNumber, twoFactorCode!);
-            //     if (!isOtpValid)
-            //         return (false, true, null);
-            // }
-
-            // user.ResetLoginAttempt();
-            // await _userRepo.SaveChangesAsync();
-
-            // string accessToken = TokenService.GenerateAccessToken(user);
-            // string refreshToken = TokenService.GenerateRefreshToken();
-            // return (true, false, (accessToken, refreshToken));
-        }
-
-
-        // public async Task<string> ValidateAndGenerateTokensAsync(string otpCode, string phoneNumber)
-        // {
-        //     var user = await _userRepo.GetUserByPhoneNumber(phoneNumber);
-        //     if (user == null)
-        //         throw new UnauthorizedAccessException("Invalid phone number.");
-
-        //     bool isOtpValid = await _otpService.ValidateTwoFactorCodeAsync(phoneNumber, otpCode);
-        //     if (!isOtpValid)
-        //         throw new UnauthorizedAccessException("Invalid OTP.");
-
-        //     return TokenService.GenerateAccessToken(user);
-        // }
-
-        private bool VerifyHashedPassword(string hashedPassword, string providedPassword)
-        {
-            using (var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(providedPassword)))
-            {
-                string computedHash = Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes(providedPassword)));
-                return computedHash == hashedPassword;
-            }
-        }
-    }
-
-    public static class TokenService
-    {
-        private const int AccessTokenExpiryMinutes = 30;
-
-        public static string GenerateAccessToken(User user)
-        {
-            string payload = $"{user.Username}:{user.Id}:{DateTime.UtcNow.AddMinutes(AccessTokenExpiryMinutes):O}";
-            return GenerateHmacToken(payload, user.Id.ToString());
-        }
-
-        public static string GenerateRefreshToken()
-        {
-            return GenerateSecureRandomToken();
-        }
-
-        private static string GenerateHmacToken(string data, string secret)
-        {
-            using (var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret)))
-            {
-                byte[] hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(data));
-                return Convert.ToBase64String(hash);
-            }
-        }
-
-        private static string GenerateSecureRandomToken()
-        {
-            byte[] tokenBytes = new byte[32];
-            using (var rng = RandomNumberGenerator.Create())
-            {
-                rng.GetBytes(tokenBytes);
-            }
-            return Convert.ToBase64String(tokenBytes);
-        }
     }
 }

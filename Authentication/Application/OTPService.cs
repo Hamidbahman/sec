@@ -27,7 +27,7 @@ namespace Authentication.Application
         public async Task<string?> GenerateOTPAsync(string phoneNumber, int length = 6)
         {
             var user = await _userRepo.GetUserByPhoneNumber(phoneNumber);
-            if (user == null)
+            if (user == null || phoneNumber != user.PhoneNumber)
             {
                 return null;
             }
@@ -35,33 +35,17 @@ namespace Authentication.Application
             var otp = new Random().Next(0, (int)Math.Pow(10, length)).ToString($"D{length}");
             otpStore[phoneNumber] = (otp, DateTime.UtcNow.AddMinutes(5));
 
-            // Send OTP via external provider
             bool success = await SendOTPToPhone(phoneNumber, otp);
             return success ? otp : null;
         }
 
-        public async Task<string?> GenerateTwoFactorCodeAsync(string userId, int length = 6)
+        public bool ValidateOTP(string phoneNumber, string otp)
         {
-            var user = await _userRepo.GetUserByPhoneNumber(userId);
-            if (user == null)
+            if (otpStore.TryGetValue(phoneNumber, out var otpEntry))
             {
-                return null;
-            }
-
-            var otp = new Random().Next(0, (int)Math.Pow(10, length)).ToString($"D{length}");
-            otpStore[userId] = (otp, DateTime.UtcNow.AddMinutes(5));
-
-            bool success = await SendOTPToPhone(userId, otp);
-            return success ? otp : null;
-        }
-
-        public async Task<bool> ValidateTwoFactorCodeAsync(string userId, string inputOtp)
-        {
-            if (otpStore.TryGetValue(userId, out var storedOtp) && storedOtp.expiry > DateTime.UtcNow)
-            {
-                if (storedOtp.otp == inputOtp)
+                if (otpEntry.otp == otp && otpEntry.expiry > DateTime.UtcNow)
                 {
-                    otpStore.TryRemove(userId, out _);
+                    otpStore.TryRemove(phoneNumber, out _);
                     return true;
                 }
             }
