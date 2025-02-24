@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Authentication.Domain.Entities;
 using Authentication.Domain.Enums;
 using Authentication.Domain.Repositories;
+using Microsoft.VisualBasic;
 
 namespace Authentication.Application
 {
@@ -55,7 +56,7 @@ namespace Authentication.Application
             return authCode;
         }
 
-public async Task<string> LoginAsync(string username, string password, string authenticationCode, string otprecieved, string phoneNumber)
+public async Task<string> LoginAsync(string username, string password, string authenticationCode)
 {
     var user = await _userRepo.GetByUsernameAsync(username);
     if (user == null)
@@ -79,41 +80,52 @@ public async Task<string> LoginAsync(string username, string password, string au
 
     if (password != user.UserProperty.Password)
     {
-        throw new AuthenticationException("password is in correct");
+        throw new AuthenticationException("password is incorrect");
     }
-        user.IncrementLoginAttempt();
-        _userRepo.SaveChangesAsync();
+        // user.IncrementLoginAttempt();
+        // await _userRepo.SaveChangesAsync();
 
+    if(user.TwoFactorEnabled)
+    {
+        throw new AuthenticationException("need phoneNumber");
+    }
 
 
     // Validate authentication code from stored dictionary
     // Validate the authentication code received from the user
-    if (!_authCodes.TryGetValue(authenticationCode, out _))
-                throw new AuthenticationException("Invalid or expired authentication code");
+    if(!_authCodes.ContainsKey(authenticationCode))
+    {
+        throw new AuthenticationException("Invalid Authentication code");
+    }
 
-// Remove used authentication code to prevent reuse
-_authCodes.TryRemove(authenticationCode, out _);
+        // Remove used authentication code to prevent reuse
+        _authCodes.TryRemove(authenticationCode, out _);
+            var accessToken = GenerateAccessToken(user);
 
-// The code is valid now, proceed with your further logic
+        return accessToken;
 
-
-
-    if(user.TwoFactorEnabled == false)
-        return GenerateAccessToken(user);
-
-
-    // Validate OTP if necessary
-    string  otpGenerate =  await _otpService.GenerateOTPAsync(phoneNumber, 6);
-     _otpService.ValidateOTP(otprecieved, otpGenerate);
-
-
-    // Generate access token after successful validation
-    var accessToken = GenerateAccessToken(user);
-
-    return accessToken;
 }
+    public async Task<string> LoginWithTwoFactor (string otprecieved, string phoneNumber)
+    {
+        var user = await _userRepo.GetUserByPhoneNumber(phoneNumber);
+        if(!user.TwoFactorEnabled )
+            return GenerateAccessToken(user);
 
-// Mocked method for access token generation (replace with real implementation)
+
+        if(string.IsNullOrEmpty(phoneNumber) || string.IsNullOrEmpty(otprecieved))
+        {
+            throw new AuthenticationException("OTP validation failed");
+        }
+        // Validate OTP if necessary
+        string  otpGenerate =  await _otpService.GenerateOTPAsync(phoneNumber, 6);
+         _otpService.ValidateOTP(otprecieved, otpGenerate);
+
+
+        var accessToken = GenerateAccessToken(user);
+
+        return accessToken;
+    }
+
 private string GenerateAccessToken(User user)
 {
     return Convert.ToBase64String(Encoding.UTF8.GetBytes($"{user.Id}:{Guid.NewGuid()}"));

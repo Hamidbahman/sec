@@ -12,10 +12,12 @@ namespace Authentication.API.Controllers
     public class OAuthController : ControllerBase
     {
         private readonly OAuthService _oAuthService;
+        private readonly OTPService _otp;
 
-        public OAuthController(OAuthService oAuthService)
+        public OAuthController(OTPService Otp,OAuthService oAuthService)
         {
             _oAuthService = oAuthService;
+            _otp = Otp;
         }
 
         /// <summary>
@@ -50,9 +52,8 @@ namespace Authentication.API.Controllers
                 var accessToken = await _oAuthService.LoginAsync(
                     request.Username, 
                     request.Password, 
-                    request.AuthenticationCode, 
-                    request.OTPReceived, 
-                    request.PhoneNumber
+                    request.AuthenticationCode
+
                 );
 
                 return Ok(new { AccessToken = accessToken });
@@ -66,7 +67,23 @@ namespace Authentication.API.Controllers
                 return BadRequest(new { Error = ex.Message });
             }
         }
+    
+
+        [HttpPost("login-with-2fa")]
+        public async Task<string> Two_Factort_Login([FromBody] TwoFactorRequest request)
+        {
+            var optGenerate = await _otp.GenerateOTPAsync(request.PhoneNumber, 6);
+            return optGenerate;
+        }
+
+        [HttpPost("login_2FA")]
+        public async Task<string> TwoFactorToken([FromBody] OtpVal otpval)
+        {
+            var val =  _otp.ValidateOTP(otpval.OtpGenerate, otpval.PhoneNumber);
+            return null;
+        }
     }
+
 
     /// <summary>
     /// Request model for generating an authorization code.
@@ -86,7 +103,17 @@ namespace Authentication.API.Controllers
         public string Username { get; set; }
         public string Password { get; set; }
         public string AuthenticationCode { get; set; }
-        public string? OTPReceived { get; set; } = string.Empty;
-        public string? PhoneNumber { get; set; } = string.Empty;
+
+    }
+
+    public class TwoFactorRequest
+    {
+        public string PhoneNumber {get;set;}
+    }
+    
+    public class OtpVal
+    {
+        public string OtpGenerate {get;set;}
+        public string PhoneNumber {get;set;}
     }
 }
