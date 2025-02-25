@@ -32,5 +32,20 @@ namespace Authenitcation.Infrastructure.Repositories;
         .OrderByDescending(cl => cl.Id) 
         .FirstOrDefaultAsync();
     }
+
+    public async Task<ConfigurationPassword?> GetConfigurationPasswordAsync(string clientId)
+    {
+        return await _context.Applications
+        .Where(app => app.ClientId == clientId)
+        .Select(app => app.ConfigurationPassword) 
+        .OrderByDescending(cl => cl.Id) 
+        .FirstOrDefaultAsync();
+    }
+
+    public async Task<bool> SaveChangesAsync()
+    {
+        await _context.SaveChangesAsync();
+        return true;
+    }
 }
 

@@ -7,5 +7,7 @@ namespace Authentication.Domain.Repositories
     {
         Task<Application?> GetApplicationByClientIdAsync(string clientId);
         Task<ConfigurationLock?> GetConfigurationLockAsync(string clientId);
+        Task<ConfigurationPassword?> GetConfigurationPasswordAsync(string clientId);
+        Task <bool> SaveChangesAsync();
     }
 }

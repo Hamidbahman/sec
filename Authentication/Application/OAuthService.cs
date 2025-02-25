@@ -37,6 +37,7 @@ namespace Authentication.Application
             
             var configLock = await _applicationRepository.GetConfigurationLockAsync(clientId);
             failedAttempt ++;
+            await _applicationRepository.SaveChangesAsync();
             if(failedAttempt >3)
             {
                 configLock.EnableCaptcha();
@@ -75,6 +76,14 @@ namespace Authentication.Application
                     TwoFactorRequired = false
                 };
             }
+            user.IncrementLoginAttempt();
+            var logPol = await _userRepo.GetLoginPoliciesByUserID(user.Id.ToString());
+            if(logPol != null && user.LoginAttempt>5)
+            {
+                logPol.SetLockType (Domain.Enums.LockTypes.TemporaryLock);
+            }
+
+            await _userRepo.SaveChangesAsync();
 
             if (!user.TwoFactorEnabled)
             {
