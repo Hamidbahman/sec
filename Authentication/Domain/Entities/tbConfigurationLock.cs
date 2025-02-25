@@ -33,4 +33,18 @@ public class ConfigurationLock : BaseEntity
         LockType = lockType;
         ApplicationId = applicationId;
     }
+
+    public void EnableCaptcha()
+        {
+            CaptchaNeeded = true;
+        }
+
+        /// <summary>
+        /// Resets failed login attempts and disables CAPTCHA.
+        /// </summary>
+        public void ResetFailedLoginAttempts()
+        {
+
+            CaptchaNeeded = false;
+        }
 }

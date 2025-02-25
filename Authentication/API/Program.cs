@@ -6,6 +6,8 @@ using Data;
 
 using Microsoft.Extensions.Options;
 using Authentication.Application;
+using Authentication.Domain.Repositories;
+using Microsoft.EntityFrameworkCore;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -24,7 +26,7 @@ builder.Services.AddDbContext<AutheDbContext>(options =>
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IApplicationRepository, ApplicationRepository>();
 builder.Services.AddScoped<OAuthService>();
-builder.Services.AddScoped<OTPService>();
+builder.Services.AddScoped<OtpService>();
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<CheckboxCaptchaService>();
 builder.Services.AddHttpContextAccessor();

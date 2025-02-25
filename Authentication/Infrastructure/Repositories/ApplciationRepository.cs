@@ -4,8 +4,8 @@ using Authentication.Domain.Repositories;
 using Data;
 using Microsoft.EntityFrameworkCore;
 
-namespace Authenitcation.Infrastructure.Repositories
-{
+namespace Authenitcation.Infrastructure.Repositories;
+
 
     public class ApplicationRepository : IApplicationRepository
     {
@@ -26,10 +26,11 @@ namespace Authenitcation.Infrastructure.Repositories
 
     public async Task<ConfigurationLock?> GetConfigurationLockAsync(string clientId)
     {
-        return await _context.ConfigurationLocks
-            .Include(cl => cl.Application)
-            .FirstOrDefaultAsync(cl => cl.Application.ClientId == clientId);        
-    }
+        return await _context.Applications
+        .Where(app => app.ClientId == clientId)
+        .SelectMany(app => app.ConfigurationLocks) 
+        .OrderByDescending(cl => cl.Id) 
+        .FirstOrDefaultAsync();
     }
 }
 
