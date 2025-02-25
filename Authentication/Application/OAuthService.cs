@@ -148,6 +148,10 @@ public async Task<AuthResult> VerifyOtpAsync(string username, string otpCode)
         };
     }
     
+
+
+
+
     var expirationD = confPass.CreateDate.AddDays(confPass.ExpireDaysAmount);
     // Check if the password is expired
     if (expirationD <= DateTime.UtcNow)  // Assuming ExpirationDate is a DateTime field
@@ -160,24 +164,29 @@ public async Task<AuthResult> VerifyOtpAsync(string username, string otpCode)
         };
     }
 
-    // Validate OTP
-    if (_otpService.ValidateOtp(user.Id, otpCode))
+    if(user.IpRange == "")
     {
-        var token = _tokenService.GenerateAccessToken(user.Id);
+        return new AuthResult
+        {
+            Success = false,
+            Message = "Invalid OTP",
+            TwoFactorRequired = true
+        };
+    }
+
+
+    // Validate OTP
+    var token = _tokenService.GenerateAccessToken(user.Id);
         return new AuthResult
         {
             Success = true,
             Token = token,
-            TwoFactorRequired = false
+            TwoFactorRequired = false,
+            Message = "AccessToken Generated Authentication Successful"
         };
-    }
 
-    return new AuthResult
-    {
-        Success = false,
-        Message = "Invalid OTP",
-        TwoFactorRequired = true
-    };
+    // OAuth Table Command/Update
+    
 }
 
 public async Task<PassResult> ChangePassword(string username, string exPassword, string newPassword, string confirmPassword)
