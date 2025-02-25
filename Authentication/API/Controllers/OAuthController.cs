@@ -44,6 +44,38 @@ namespace Authentication.Application
 
             return Unauthorized(new { Message = result.Message });
         }
+
+
+    [HttpPost("change-password")]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest model)
+    {
+        if (model == null)
+            return BadRequest("Invalid request.");
+
+        try
+        {
+            var result = await _authService.ChangePassword(model.Username, model.ExPassword, model.NewPassword, model.ConfirmPassword);
+
+            if (!result.Success)
+                return BadRequest(new { result.Message });
+
+            return Ok(new { result.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Message = "An error occurred.", Error = ex.Message });
+        }
+    }
+}
+
+public class ChangePasswordRequest
+{
+    public string Username { get; set; }
+    public string ExPassword { get; set; }
+    public string NewPassword { get; set; }
+    public string ConfirmPassword { get; set; }
+}
+
     }
 
     public class AuthCodeRequest
@@ -65,4 +97,4 @@ namespace Authentication.Application
         public string Username { get; set; }
         public string OtpCode { get; set; }
     }
-}
+

@@ -29,4 +29,9 @@ public class UserProperty
         Password = password;
         ConfigurationPasswordId = configurationPasswordId;
     }
+
+    public void SetPassowrd(string newPassword)
+    {
+        Password = newPassword;
+    }
 }

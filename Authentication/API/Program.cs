@@ -10,6 +10,7 @@ using Authentication.Domain.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Domain.Repositories;
 using Infrastructure.Repositories;
+using Application;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -31,8 +32,11 @@ builder.Services.AddScoped<IApplicationRepository, ApplicationRepository>();
 builder.Services.AddScoped<IUserPropertyRepository, UserPropertyRepository>();
 builder.Services.AddScoped<OAuthService>();
 builder.Services.AddScoped<OtpService>();
+builder.Services.AddScoped<TokenService>();
+builder.Services.AddScoped<TokenValidationService>();
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<CheckboxCaptchaService>();
+builder.Services.AddScoped<PuzzleCaptchaService>();
 builder.Services.AddHttpContextAccessor();
 
 //builder.Services.AddScoped<RecaptchaService>();

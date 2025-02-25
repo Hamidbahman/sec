@@ -23,5 +23,11 @@ public class UserPropertyRepository : IUserPropertyRepository
             .FirstOrDefaultAsync(); // Get the first matching record or null
 
     }
+
+    public async Task<bool> SaveChangesAsync()
+    {
+        await _context.SaveChangesAsync();
+        return true;
+    }
 }
 

@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "uyNoT5hutk8=",
+  "dgSpecHash": "4gYsmTHx0h4=",
   "success": true,
   "projectFilePath": "C:\\Users\\hamid.RYMOND\\7\\sec\\authentication\\Application\\Application.csproj",
   "expectedPackageFiles": [
@@ -58,6 +58,9 @@
     "C:\\Users\\hamid.RYMOND\\.nuget\\packages\\microsoft.sqlserver.server\\1.0.0\\microsoft.sqlserver.server.1.0.0.nupkg.sha512",
     "C:\\Users\\hamid.RYMOND\\.nuget\\packages\\microsoft.win32.systemevents\\6.0.0\\microsoft.win32.systemevents.6.0.0.nupkg.sha512",
     "C:\\Users\\hamid.RYMOND\\.nuget\\packages\\mono.texttemplating\\3.0.0\\mono.texttemplating.3.0.0.nupkg.sha512",
+    "C:\\Users\\hamid.RYMOND\\.nuget\\packages\\skiasharp\\3.116.1\\skiasharp.3.116.1.nupkg.sha512",
+    "C:\\Users\\hamid.RYMOND\\.nuget\\packages\\skiasharp.nativeassets.macos\\3.116.1\\skiasharp.nativeassets.macos.3.116.1.nupkg.sha512",
+    "C:\\Users\\hamid.RYMOND\\.nuget\\packages\\skiasharp.nativeassets.win32\\3.116.1\\skiasharp.nativeassets.win32.3.116.1.nupkg.sha512",
     "C:\\Users\\hamid.RYMOND\\.nuget\\packages\\system.buffers\\4.6.0\\system.buffers.4.6.0.nupkg.sha512",
     "C:\\Users\\hamid.RYMOND\\.nuget\\packages\\system.clientmodel\\1.0.0\\system.clientmodel.1.0.0.nupkg.sha512",
     "C:\\Users\\hamid.RYMOND\\.nuget\\packages\\system.codedom\\6.0.0\\system.codedom.6.0.0.nupkg.sha512",
