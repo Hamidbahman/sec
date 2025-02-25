@@ -8,6 +8,8 @@ using Microsoft.Extensions.Options;
 using Authentication.Application;
 using Authentication.Domain.Repositories;
 using Microsoft.EntityFrameworkCore;
+using Domain.Repositories;
+using Infrastructure.Repositories;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -26,6 +28,7 @@ builder.Services.AddDbContext<AutheDbContext>(options =>
 
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IApplicationRepository, ApplicationRepository>();
+builder.Services.AddScoped<IUserPropertyRepository, UserPropertyRepository>();
 builder.Services.AddScoped<OAuthService>();
 builder.Services.AddScoped<OtpService>();
 builder.Services.AddHttpClient();

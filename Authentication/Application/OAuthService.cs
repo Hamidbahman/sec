@@ -6,12 +6,14 @@ using System.Threading.Tasks;
 using Application;
 using Authentication.Domain.Entities;
 using Authentication.Domain.Repositories;
+using Domain.Repositories;
 
 namespace Authentication.Application
 {
     public class OAuthService
     {
         private readonly IApplicationRepository _applicationRepository;
+        private readonly IUserPropertyRepository _userPropertyRepo;
         private readonly IUserRepository _userRepo;
         private readonly OtpService _otpService;
         private readonly CheckboxCaptchaService _checkBox;
@@ -19,12 +21,14 @@ namespace Authentication.Application
         private static readonly ConcurrentDictionary<string, string> _authCodes = new();
 
         public OAuthService(
+            IUserPropertyRepository userPropertyRepository,
             TokenService tokenService,
             CheckboxCaptchaService checkboxCaptchaService,
             OtpService otpService,
             IApplicationRepository applicationRepository,
             IUserRepository userRepository)
         {
+            _userPropertyRepo = userPropertyRepository;
             _tokenService = tokenService;
             _checkBox = checkboxCaptchaService;
             _applicationRepository = applicationRepository;
@@ -115,37 +119,64 @@ namespace Authentication.Application
             };
         }
 
-        public async Task<AuthResult> VerifyOtpAsync(string username, string otpCode)
+public async Task<AuthResult> VerifyOtpAsync(string username, string otpCode)
+{
+    var user = await _userRepo.GetByUsernameAsync(username);
+    
+    if (user == null)
+    {
+        return new AuthResult
         {
-            var user = await _userRepo.GetByUsernameAsync(username);
-            if (user == null)
-            {
-                return new AuthResult
-                {
-                    Success = false,
-                    Message = "User not found",
-                    TwoFactorRequired = false
-                };
-            }
+            Success = false,
+            Message = "User not found",
+            TwoFactorRequired = false
+        };
+    }
 
-            if (_otpService.ValidateOtp(user.Id, otpCode))
-            {
-                var token = _tokenService.GenerateAccessToken(user.Id);
-                return new AuthResult
-                {
-                    Success = true,
-                    Token = token,
-                    TwoFactorRequired = false
-                };
-            }
+    var confPass = await _userPropertyRepo.GetConfigurationPasswordByUserIdAsync(user.UserProperty.ConfigurationPasswordId);
 
-            return new AuthResult
-            {
-                Success = false,
-                Message = "Invalid OTP",
-                TwoFactorRequired = true
-            };
-        }
+    if (confPass == null)
+    {
+        return new AuthResult
+        {
+            Success = false,
+            Message = "User password configuration not found",
+            TwoFactorRequired = false
+        };
+    }
+    
+    var expirationD = confPass.CreateDate.AddDays(confPass.ExpireDaysAmount);
+    // Check if the password is expired
+    if (expirationD <= DateTime.UtcNow)  // Assuming ExpirationDate is a DateTime field
+    {
+        return new AuthResult
+        {
+            Success = false,
+            Message = "Password expired. Please change your password.",
+            TwoFactorRequired = false
+        };
+    }
+
+    // Validate OTP
+    if (_otpService.ValidateOtp(user.Id, otpCode))
+    {
+        var token = _tokenService.GenerateAccessToken(user.Id);
+        return new AuthResult
+        {
+            Success = true,
+            Token = token,
+            TwoFactorRequired = false
+        };
+    }
+
+    return new AuthResult
+    {
+        Success = false,
+        Message = "Invalid OTP",
+        TwoFactorRequired = true
+    };
+}
+
 
   
     }
