@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Configuration.AddJsonFile("Appsettings.json", optional: false, reloadOnChange: true);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddControllers();

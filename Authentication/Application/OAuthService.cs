@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Security.Authentication;
 using System.Text;
 using System.Threading.Tasks;
+using Application;
 using Authentication.Domain.Entities;
 using Authentication.Domain.Repositories;
 
@@ -14,14 +15,17 @@ namespace Authentication.Application
         private readonly IUserRepository _userRepo;
         private readonly OtpService _otpService;
         private readonly CheckboxCaptchaService _checkBox;
+        private readonly TokenService _tokenService;
         private static readonly ConcurrentDictionary<string, string> _authCodes = new();
 
         public OAuthService(
+            TokenService tokenService,
             CheckboxCaptchaService checkboxCaptchaService,
             OtpService otpService,
             IApplicationRepository applicationRepository,
             IUserRepository userRepository)
         {
+            _tokenService = tokenService;
             _checkBox = checkboxCaptchaService;
             _applicationRepository = applicationRepository;
             _userRepo = userRepository;
@@ -81,6 +85,7 @@ namespace Authentication.Application
             if(logPol != null && user.LoginAttempt>5)
             {
                 logPol.SetLockType (Domain.Enums.LockTypes.TemporaryLock);
+                throw new AuthenticationException("Account is locked");
             }
 
             await _userRepo.SaveChangesAsync();
@@ -88,7 +93,7 @@ namespace Authentication.Application
             if (!user.TwoFactorEnabled)
             {
                 _authCodes.TryRemove(authenticationCode, out _);
-                var token = GenerateAccessToken(user);
+                var token = _tokenService.GenerateAccessToken(user.Id);
 
                 return new AuthResult
                 {
@@ -125,7 +130,7 @@ namespace Authentication.Application
 
             if (_otpService.ValidateOtp(user.Id, otpCode))
             {
-                var token = GenerateAccessToken(user);
+                var token = _tokenService.GenerateAccessToken(user.Id);
                 return new AuthResult
                 {
                     Success = true,
@@ -142,10 +147,7 @@ namespace Authentication.Application
             };
         }
 
-        private string GenerateAccessToken(User user)
-        {
-            return Convert.ToBase64String(Encoding.UTF8.GetBytes($"{user.Id}:{Guid.NewGuid()}"));
-        }
+  
     }
 
     public class AuthResult
