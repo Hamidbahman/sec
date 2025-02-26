@@ -19,17 +19,21 @@ namespace Authentication.Application
         private readonly CheckboxCaptchaService _checkBox;
         private readonly TokenService _tokenService;
         private readonly PuzzleCaptchaService _puzzleService;
+        private readonly IOAuthTokenRepository _OauthRepo;
         private static readonly ConcurrentDictionary<string, string> _authCodes = new();
 
         public OAuthService(
+            IOAuthTokenRepository oauthRepo,
             PuzzleCaptchaService puzzleCaptchaService,
             IUserPropertyRepository userPropertyRepository,
             TokenService tokenService,
             CheckboxCaptchaService checkboxCaptchaService,
             OtpService otpService,
+
             IApplicationRepository applicationRepository,
             IUserRepository userRepository)
         {
+            _OauthRepo = oauthRepo;
             _puzzleService = puzzleCaptchaService;
             _userPropertyRepo = userPropertyRepository;
             _tokenService = tokenService;
@@ -97,6 +101,8 @@ namespace Authentication.Application
 
             await _userRepo.SaveChangesAsync();
 
+
+
             if (!user.TwoFactorEnabled)
             {
                 _authCodes.TryRemove(authenticationCode, out _);
@@ -109,6 +115,7 @@ namespace Authentication.Application
                     TwoFactorRequired = false
                 };
             }
+
 
             // Generate and send OTP
             var otpCode = _otpService.GenerateOtp(user.Id);
@@ -188,6 +195,13 @@ public async Task<AuthResult> VerifyOtpAsync(string username, string otpCode)
     // OAuth Table Command/Update
     
 }
+
+private async Task SaveOauthTokenAsync(string clientId, string userName, string accessToken, string refreshToken, short tokenType)
+{
+    var oauthToken = new OauthToken(clientId, userName, accessToken, refreshToken, tokenType);
+    await _OauthRepo.AddAsync(oauthToken);
+}
+
 
 public async Task<PassResult> ChangePassword(string username, string exPassword, string newPassword, string confirmPassword)
 {
@@ -281,8 +295,10 @@ public async Task<PassResult> ChangePassword(string username, string exPassword,
     };
 }
 
+
+
   
-    }
+}
 
     public class PassResult 
     {

@@ -39,6 +39,14 @@ builder.Services.AddScoped<CheckboxCaptchaService>();
 builder.Services.AddScoped<PuzzleCaptchaService>();
 builder.Services.AddHttpContextAccessor();
 
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowReactApp",
+    builder => builder.WithOrigins("http://localhost:3000")
+        .AllowAnyMethod()
+        .AllowAnyHeader());
+});
 //builder.Services.AddScoped<RecaptchaService>();
 
 
