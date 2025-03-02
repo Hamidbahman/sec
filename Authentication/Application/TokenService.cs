@@ -27,4 +27,17 @@ public class TokenService
         string signature = Convert.ToBase64String(hash);
         return $"{tokenData}:{signature}";
     }
+
+    public string GenerateRefreshToken()
+    {
+        // Generate a cryptographically secure random number
+        var randomNumber = new byte[32]; // 32 bytes = 256 bits
+        using (var rng = RandomNumberGenerator.Create())
+        {
+            rng.GetBytes(randomNumber);
+        }
+
+        // Convert the random number to a base64 string
+        return Convert.ToBase64String(randomNumber);
+    }
 }

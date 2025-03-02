@@ -1,16 +1,21 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace Authentication.Domain.Entities;
-
+namespace Authentication.Domain.Entities
+{
     [Table("tbOauthToken")]
     public class OauthToken : BaseEntity
     {
         [StringLength(50)]
         public string ClientId { get; private set; }
 
+        private string _userName;
         [StringLength(50)]
-        public string UserName { get; private set; }
+        public string UserName
+        {
+            get => _userName;
+            private set => _userName = value;
+        }
 
         [StringLength(255)]
         public string AccessToken { get; set; }  
@@ -30,5 +35,10 @@ namespace Authentication.Domain.Entities;
             RefreshToken = refreshToken;
             TokenType = tokenType;
         }
-    }
 
+        public void SetUserName(string userName)
+        {
+            UserName = userName;
+        }
+    }
+}

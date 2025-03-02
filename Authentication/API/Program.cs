@@ -1,26 +1,33 @@
-
-using Authenitcation.Infrastructure.Repositories;
 using Authentication.Application;
-using Authentication.Infrastructure.Repositories;
 using Data;
-
 using Microsoft.Extensions.Options;
-using Authentication.Application;
-using Authentication.Domain.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Domain.Repositories;
+using Microsoft.AspNetCore.Authentication.OAuth;
+using Authentication.Domain.Repositories;
+using Authenitcation.Infrastructure.Repositories;
 using Infrastructure.Repositories;
+using Authentication.Infrastructure.Repositories;
 using Application;
-
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Configuration.AddJsonFile("Appsettings.json", optional: false, reloadOnChange: true);
 
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddControllers();
 builder.Services.AddSwaggerGen();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAllOrigins",
+        builder=>
+        {
+            builder.AllowAnyOrigin()
+                .AllowAnyMethod()
+                .AllowAnyHeader();
+        });
+});
 
+builder.Services.AddControllers();
 
 builder.Services.AddDbContext<AutheDbContext>(options => 
 {
@@ -28,8 +35,10 @@ builder.Services.AddDbContext<AutheDbContext>(options =>
 });
 
 builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder..AddSingleton<DistributedCacheService>();
 builder.Services.AddScoped<IApplicationRepository, ApplicationRepository>();
 builder.Services.AddScoped<IUserPropertyRepository, UserPropertyRepository>();
+builder.Services.AddScoped<IOAuthTokenRepository, OauthTokenRepository>(); // Ensure IOAuthTokenRepository is registered
 builder.Services.AddScoped<OAuthService>();
 builder.Services.AddScoped<OtpService>();
 builder.Services.AddScoped<TokenService>();
@@ -40,23 +49,17 @@ builder.Services.AddScoped<PuzzleCaptchaService>();
 builder.Services.AddHttpContextAccessor();
 
 
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowReactApp",
-    builder => builder.WithOrigins("http://localhost:3000")
-        .AllowAnyMethod()
-        .AllowAnyHeader());
-});
-//builder.Services.AddScoped<RecaptchaService>();
-
-
-
 
 var app = builder.Build();
+
+
+
+app.UseCors();
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseEndpoints(endpoints=>
+
+app.UseEndpoints(endpoints =>
 {
     endpoints.MapControllers();
 });

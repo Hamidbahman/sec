@@ -7435,6 +7435,7 @@
     "net9.0": [
       "Application >= 1.0.0",
       "Infrastructure >= 1.0.0",
+      "Microsoft.AspNetCore.Cors >= 2.3.0",
       "Microsoft.AspNetCore.Mvc >= 2.3.0",
       "Microsoft.AspNetCore.OpenApi >= 9.0.2",
       "Swashbuckle.AspNetCore.Swagger >= 7.2.0",
@@ -7499,6 +7500,10 @@
       "net9.0": {
         "targetAlias": "net9.0",
         "dependencies": {
+          "Microsoft.AspNetCore.Cors": {
+            "target": "Package",
+            "version": "[2.3.0, )"
+          },
           "Microsoft.AspNetCore.Mvc": {
             "target": "Package",
             "version": "[2.3.0, )"
