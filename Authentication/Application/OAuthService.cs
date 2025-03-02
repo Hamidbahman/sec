@@ -85,310 +85,146 @@ namespace Authentication.Application;
         /// <param name="userCaptchaToken">CAPTCHA validation token if required</param>
         /// <returns>Authorization code or error</returns>
         public async Task<AuthorizationResult> AuthorizeAsync(
-            string clientId, 
-            string responseType, 
-            string redirectUri, 
-            string state,
-            string scope,
-            string nonce,
-            string codeChallenge,
-            string codeChallengeMethod,
-            string? userCaptchaToken = null)
+    string clientId, 
+    string responseType, 
+    string redirectUri, 
+    string? state = null,
+    string? scope = null,
+    string? userCaptchaToken = null)
+{
+    try
+    {
+        _logger.LogInformation("Authorization request for client ID: {ClientId}", clientId);
+        
+        // Validate response type
+        if (responseType != "code")
         {
-            try
+            return new AuthorizationResult
             {
-                _logger.LogInformation("Authorization request for client ID: {ClientId}", clientId);
-                
-                // Validate response type
-                if (responseType != "code")
-                {
-                    return new AuthorizationResult
-                    {
-                        IsSuccess = false,
-                        Error = "unsupported_response_type",
-                        ErrorDescription = "Only 'code' response type is supported"
-                    };
-                }
-                
-                // Validate code challenge for PKCE (required in OAuth 2.1)
-                if (string.IsNullOrEmpty(codeChallenge))
-                {
-                    return new AuthorizationResult
-                    {
-                        IsSuccess = false,
-                        Error = "invalid_request",
-                        ErrorDescription = "Code challenge is required"
-                    };
-                }
-                
-                if (codeChallengeMethod != "S256")
-                {
-                    return new AuthorizationResult
-                    {
-                        IsSuccess = false,
-                        Error = "invalid_request",
-                        ErrorDescription = "Only S256 code challenge method is supported"
-                    };
-                }
-                
-                // Validate client
-                var application = await _applicationRepository.GetApplicationByClientIdAsync(clientId);
-                if (application == null)
-                {
-                    _logger.LogWarning("Client ID not found: {ClientId}", clientId);
-                    //await _auditLogService.LogSecurityEventAsync("AUTH_FAILURE", $"Unknown client ID: {clientId}");
-                    
-                    return new AuthorizationResult
-                    {
-                        IsSuccess = false,
-                        Error = "unauthorized_client",
-                        ErrorDescription = "Client not found"
-                    };
-                }
-                
-                // Validate redirect URI
-                if (!IsRedirectUriValid(application.RedirectUrls, redirectUri))
-                {
-                    _logger.LogWarning("Invalid redirect URI: {RedirectUri} for client: {ClientId}", redirectUri, clientId);
-                    //await _auditLogService.LogSecurityEventAsync("AUTH_FAILURE", $"Invalid redirect URI: {redirectUri}, client: {clientId}");
-                    
-                    return new AuthorizationResult
-                    {
-                        IsSuccess = false,
-                        Error = "invalid_request",
-                        ErrorDescription = "Redirect URI is not allowed"
-                    };
-                }
-                
-                // Get client's lock configuration
-                var configLock = await _applicationRepository.GetConfigurationLockAsync(clientId);
-                
-                // Track failed attempts by client ID in a more robust way
-                string failedAttemptsKey = $"failed_attempts:{clientId}";
-                int failedAttempts = await _cache.GetAsync<int>(failedAttemptsKey);
-                failedAttempts++;
-                
-                await _cache.SetAsync(failedAttemptsKey, failedAttempts, TimeSpan.FromHours(1));
-                
-                if (failedAttempts > 3)
-                {
-                    configLock.EnableCaptcha();
-                    await _applicationRepository.SaveChangesAsync();
-                }
-
-                // CAPTCHA validation if needed
-                if (configLock.CaptchaNeeded)
-                {
-                    if (string.IsNullOrEmpty(userCaptchaToken))
-                    {
-                        _logger.LogInformation("CAPTCHA required for client: {ClientId}", clientId);
-                        string captchaToken = _checkBox.GenerateCaptchaToken();
-                        
-                        return new AuthorizationResult
-                        {
-                            IsSuccess = false,
-                            RequiresCaptcha = true,
-                            CaptchaToken = captchaToken,
-                            Error = "captcha_required",
-                            ErrorDescription = "CAPTCHA verification required"
-                        };
-                    }
-
-                    if (!_checkBox.ValidateCaptchaToken(userCaptchaToken))
-                    {
-                        _logger.LogWarning("Invalid CAPTCHA token for client: {ClientId}", clientId);
-                        //await _auditLogService.LogSecurityEventAsync("CAPTCHA_FAILURE", $"Client: {clientId}");
-                        
-                        return new AuthorizationResult
-                        {
-                            IsSuccess = false,
-                            Error = "invalid_captcha",
-                            ErrorDescription = "Invalid CAPTCHA"
-                        };
-                    }
-                }
-
-                string authCode = GenerateSecureAuthCode();
-                
-                var authCodeInfo = new AuthCodeInfo
-                {
-                    ClientId = clientId,
-                    RedirectUri = redirectUri,
-                    Scope = scope,
-                    Nonce = nonce,
-                    State = state,
-                    CodeChallenge = codeChallenge,
-                    CodeChallengeMethod = codeChallengeMethod,
-                    CreatedAt = DateTime.UtcNow,
-                    ExpiresAt = DateTime.UtcNow.AddMinutes(10) 
-                };
-                
-                // Store in distributed cache
-                await _cache.SetAsync($"{AUTH_CODE_PREFIX}{authCode}", authCodeInfo, TimeSpan.FromMinutes(10));
-                
-                // Reset failed attempts on success
-                await _cache.SetAsync(failedAttemptsKey, 0, TimeSpan.FromHours(1));
-                
-                _logger.LogInformation("Authorization code generated successfully for client: {ClientId}", clientId);
-                //await _auditLogService.LogSecurityEventAsync("AUTH_CODE_GENERATED", $"Client: {clientId}");
-                
-                return new AuthorizationResult
-                {
-                    IsSuccess = true,
-                    AuthorizationCode = authCode,
-                    State = state
-                };
-            }
-            catch (Exception ex)
+                IsSuccess = false,
+                Error = "unsupported_response_type",
+                ErrorDescription = "Only 'code' response type is supported"
+            };
+        }
+        
+        // Validate client
+        var application = await _applicationRepository.GetApplicationByClientIdAsync(clientId);
+        if (application == null)
+        {
+            _logger.LogWarning("Client ID not found: {ClientId}", clientId);
+            
+            return new AuthorizationResult
             {
-                _logger.LogError(ex, "Error generating authorization code for client: {ClientId}", clientId);
+                IsSuccess = false,
+                Error = "unauthorized_client",
+                ErrorDescription = "Client not found"
+            };
+        }
+        
+        // Validate redirect URI
+        if (!IsRedirectUriValid(application.RedirectUrls, redirectUri))
+        {
+            _logger.LogWarning("Invalid redirect URI: {RedirectUri} for client: {ClientId}", redirectUri, clientId);
+            
+            return new AuthorizationResult
+            {
+                IsSuccess = false,
+                Error = "invalid_request",
+                ErrorDescription = "Redirect URI is not allowed"
+            };
+        }
+        
+        // Get client's lock configuration
+        var configLock = await _applicationRepository.GetConfigurationLockAsync(clientId);
+        
+        // Track failed attempts by client ID
+        string failedAttemptsKey = $"failed_attempts:{clientId}";
+        int failedAttempts = await _cache.GetAsync<int>(failedAttemptsKey) ?? 0;
+        failedAttempts++;
+        
+        await _cache.SetAsync(failedAttemptsKey, failedAttempts, TimeSpan.FromHours(1));
+        
+        // Enable CAPTCHA after 3 failed attempts
+        if (failedAttempts > 3)
+        {
+            configLock.EnableCaptcha();
+            await _applicationRepository.SaveChangesAsync();
+        }
+
+        // CAPTCHA validation
+        if (configLock.CaptchaNeeded)
+        {
+            // No CAPTCHA token provided
+            if (string.IsNullOrEmpty(userCaptchaToken))
+            {
+                _logger.LogInformation("CAPTCHA required for client: {ClientId}", clientId);
                 
                 return new AuthorizationResult
                 {
                     IsSuccess = false,
-                    Error = "server_error",
-                    ErrorDescription = "An unexpected error occurred"
+                    RequiresCaptcha = true,
+                    Error = "captcha_required",
+                    ErrorDescription = "CAPTCHA verification required"
+                };
+            }
+
+            // Validate provided CAPTCHA token
+            if (!_checkBox.ValidateCaptchaToken(userCaptchaToken))
+            {
+                _logger.LogWarning("Invalid CAPTCHA token for client: {ClientId}", clientId);
+                
+                return new AuthorizationResult
+                {
+                    IsSuccess = false,
+                    Error = "invalid_captcha",
+                    ErrorDescription = "Invalid CAPTCHA"
                 };
             }
         }
 
-        /// <summary>
-        /// Exchanges an authorization code for tokens
-        /// </summary>
-        public async Task<TokenResult> ExchangeCodeAsync(
-            string code,
-            string clientId, 
-            string clientSecret, 
-            string redirectUri,
-            string codeVerifier)
+
+
+        // Generate authorization code
+        string authCode = GenerateSecureAuthCode();
+        
+        // Store authorization code information
+        var authCodeInfo = new AuthCodeInfo
         {
-            try
-            {
-                _logger.LogInformation("Token exchange request for client ID: {ClientId}", clientId);
-                
-                // Get authorization code from cache
-                var authCodeInfo = await _cache.GetAsync<AuthCodeInfo>($"{AUTH_CODE_PREFIX}{code}");
-                
-                if (authCodeInfo == null || authCodeInfo.ExpiresAt < DateTime.UtcNow)
-                {
-                    _logger.LogWarning("Invalid or expired authorization code during exchange for client: {ClientId}", clientId);
-                    //await _auditLogService.LogSecurityEventAsync("AUTH_FAILURE", $"Invalid/expired code, client: {clientId}");
-                    
-                    return new TokenResult
-                    {
-                        IsSuccess = false,
-                        Error = "invalid_grant",
-                        ErrorDescription = "Invalid or expired authorization code"
-                    };
-                }
-                
-                // Verify client ID matches the one that requested the code
-                if (authCodeInfo.ClientId != clientId)
-                {
-                    _logger.LogWarning("Client ID mismatch during code exchange. Expected: {ExpectedClientId}, Actual: {ActualClientId}", 
-                        authCodeInfo.ClientId, clientId);
-                    
-                    //await _auditLogService.LogSecurityEventAsync("AUTH_FAILURE", 
-                    //    $"Client ID mismatch during code exchange. Expected: {authCodeInfo.ClientId}, Actual: {clientId}";
-                    
-                    return new TokenResult
-                    {
-                        IsSuccess = false,
-                        Error = "invalid_grant",
-                        ErrorDescription = "Authorization code was not issued for this client"
-                    };
-                }
-                
-                // Validate client credentials
-                var application = await _applicationRepository.GetApplicationByClientIdAsync(clientId);
-                if (application == null || !SecureCompare(clientSecret, application.ClientSecret))
-                {
-                    _logger.LogWarning("Invalid client credentials during code exchange for client: {ClientId}", clientId);
-                    //await _auditLogService.LogSecurityEventAsync("AUTH_FAILURE", $"Invalid client credentials, client: {clientId}");
-                    
-                    return new TokenResult
-                    {
-                        IsSuccess = false,
-                        Error = "invalid_client",
-                        ErrorDescription = "Invalid client credentials"
-                    };
-                }
-                
-                // Verify redirect URI matches
-                if (redirectUri != authCodeInfo.RedirectUri)
-                {
-                    _logger.LogWarning("Redirect URI mismatch during code exchange for client: {ClientId}", clientId);
-                    //await _auditLogService.LogSecurityEventAsync("AUTH_FAILURE", $"Redirect URI mismatch, client: {clientId}");
-                    
-                    return new TokenResult
-                    {
-                        IsSuccess = false,
-                        Error = "invalid_grant",
-                        ErrorDescription = "Redirect URI mismatch"
-                    };
-                }
-                
-                // Verify PKCE code verifier
-                if (!VerifyPkceCodeVerifier(codeVerifier, authCodeInfo.CodeChallenge, authCodeInfo.CodeChallengeMethod))
-                {
-                    _logger.LogWarning("Invalid PKCE code verifier for client: {ClientId}", clientId);
-                    //await _auditLogService.LogSecurityEventAsync("AUTH_FAILURE", $"Invalid PKCE verifier, client: {clientId}");
-                    
-                    return new TokenResult
-                    {
-                        IsSuccess = false,
-                        Error = "invalid_grant",
-                        ErrorDescription = "Invalid code verifier"
-                    };
-                }
-                
-                // Code is valid, generate tokens
-                string accessToken = _tokenService.GenerateAccessToken(
-                    0, // No user ID yet
-                    clientId,
-                    authCodeInfo.Scope,
-                    null); // No roles yet
-                
-                string refreshToken = _tokenService.GenerateRefreshToken();
-                
-                // Store token for reference
-                var tokenEntity = new OauthToken(
-                    clientId,
-                    "pending", // No username yet
-                    accessToken,
-                    refreshToken,
-                    1); // Token type 1 - pending user login
-                
-                await _oauthRepo.AddAsync(tokenEntity);
-                
-                // Remove the authorization code from cache
-                await _cache.RemoveAsync($"{AUTH_CODE_PREFIX}{code}");
-                
-                _logger.LogInformation("Token exchange successful for client: {ClientId}", clientId);
-                //await _auditLogService.LogSecurityEventAsync("TOKEN_ISSUED", $"Client: {clientId}");
-                
-                return new TokenResult
-                {
-                    IsSuccess = true,
-                    AccessToken = accessToken,
-                    RefreshToken = refreshToken,
-                    TokenType = "Bearer",
-                    ExpiresIn = 3600, // 1 hour
-                    Scope = authCodeInfo.Scope
-                };
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error exchanging authorization code for client: {ClientId}", clientId);
-                
-                return new TokenResult
-                {
-                    IsSuccess = false,
-                    Error = "server_error",
-                    ErrorDescription = "An unexpected error occurred"
-                };
-            }
-        }
+            ClientId = clientId,
+            RedirectUri = redirectUri,
+            Scope = scope ?? application.ClientScope,
+            State = state,
+            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.AddMinutes(10) 
+        };
+        
+        // Store in distributed cache
+        await _cache.SetAsync($"{AUTH_CODE_PREFIX}{authCode}", authCodeInfo, TimeSpan.FromMinutes(10));
+        
+        // Reset failed attempts on successful authorization
+        await _cache.SetAsync(failedAttemptsKey, 0, TimeSpan.FromHours(1));
+        
+        _logger.LogInformation("Authorization code generated successfully for client: {ClientId}", clientId);
+        
+        return new AuthorizationResult
+        {
+            IsSuccess = true,
+            AuthorizationCode = authCode,
+            State = state
+        };
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error generating authorization code for client: {ClientId}", clientId);
+        
+        return new AuthorizationResult
+        {
+            IsSuccess = false,
+            Error = "server_error",
+            ErrorDescription = "An unexpected error occurred"
+        };
+    }
+}
 
         /// <summary>
         /// Authenticates a user with username, password, and auth code

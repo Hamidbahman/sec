@@ -53,6 +53,11 @@ builder.Services.AddHttpClient();
 builder.Services.AddScoped<CheckboxCaptchaService>();
 builder.Services.AddScoped<PuzzleCaptchaService>();
 builder.Services.AddHttpContextAccessor();
+services.AddHttpClient<KavenegarOtpService>();
+services.AddScoped<KavenegarOtpService>();
+
+// Remove or comment out the old OtpService registration
+// services.AddScoped<OtpService>();
 
 var app = builder.Build();
 
