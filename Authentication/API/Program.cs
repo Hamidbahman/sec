@@ -8,7 +8,10 @@ using Authentication.Domain.Repositories;
 using Authenitcation.Infrastructure.Repositories;
 using Infrastructure.Repositories;
 using Authentication.Infrastructure.Repositories;
+using Authentication.Infrastructure.Services;
 using Application;
+using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Caching.Memory;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,10 +19,14 @@ builder.Configuration.AddJsonFile("Appsettings.json", optional: false, reloadOnC
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// Add Distributed Cache Implementation
+builder.Services.AddDistributedMemoryCache(); // This resolves the IDistributedCache dependency
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAllOrigins",
-        builder=>
+        builder =>
         {
             builder.AllowAnyOrigin()
                 .AllowAnyMethod()
@@ -35,24 +42,19 @@ builder.Services.AddDbContext<AutheDbContext>(options =>
 });
 
 builder.Services.AddScoped<IUserRepository, UserRepository>();
-builder..AddSingleton<DistributedCacheService>();
+builder.Services.AddSingleton<DistributedCacheService>();
 builder.Services.AddScoped<IApplicationRepository, ApplicationRepository>();
 builder.Services.AddScoped<IUserPropertyRepository, UserPropertyRepository>();
-builder.Services.AddScoped<IOAuthTokenRepository, OauthTokenRepository>(); // Ensure IOAuthTokenRepository is registered
+builder.Services.AddScoped<IOAuthTokenRepository, OAuthTokenRepository>();
 builder.Services.AddScoped<OAuthService>();
 builder.Services.AddScoped<OtpService>();
 builder.Services.AddScoped<TokenService>();
-builder.Services.AddScoped<TokenValidationService>();
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<CheckboxCaptchaService>();
 builder.Services.AddScoped<PuzzleCaptchaService>();
 builder.Services.AddHttpContextAccessor();
 
-
-
 var app = builder.Build();
-
-
 
 app.UseCors();
 app.UseRouting();

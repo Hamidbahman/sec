@@ -10,7 +10,7 @@ namespace Authentication.Infrastructure.Repositories
 {
 
 
-    public class UserRepository 
+    public class UserRepository : IUserRepository
     {
         private readonly AutheDbContext _context;
 
@@ -97,9 +97,65 @@ namespace Authentication.Infrastructure.Repositories
             return user;
         }
 
-        public async Task<bool> IsPasswordInHistoryAsync(long userId, string password)
+
+        public async Task<ICollection<UserRole>> GetUserRolesAsync(long userId)
         {
-            return true;
+            return await _context.UserRoles
+                .Include(ur => ur.Role)
+                .Where(ur => ur.UserId == userId)
+                .ToListAsync();            
+        }
+
+        public async Task<ICollection<string>> GetUserRoleTitlesAsync(long userId)
+        {
+            return await _context.UserRoles
+                .Include(ur => ur.Role)
+                .Where(ur => ur.UserId == userId)
+                .Select(ur => ur.Role.Title)
+                .ToListAsync();        
+        }
+
+        public async Task<UserRole?> GetDefaultUserRoleAsync(long userId)
+        {
+            return await _context.UserRoles
+                .Include(ur => ur.Role)
+                .FirstOrDefaultAsync(ur => ur.UserId == userId && ur.IsDefault);        }
+
+        public async Task<bool> IsUserInRoleAsync(long userId, string roleName)
+        {
+            return await _context.UserRoles
+                .Include(ur => ur.Role)
+                .AnyAsync(ur => ur.UserId == userId && ur.Role.Title == roleName);        }
+
+        public async Task AddUserRoleAsync(long userId, long roleId, bool isDefault = false)
+        {
+            var existingRole = await _context.UserRoles
+                .FirstOrDefaultAsync(ur => ur.UserId == userId && ur.RoleId == roleId);
+
+            if (existingRole == null)
+            {
+                var userRole = new UserRole(
+                id: 0, // Let the database generate the ID
+                userId: userId,
+                roleId: roleId,
+                isDefault: isDefault
+        );
+
+            _context.UserRoles.Add(userRole);
+            await _context.SaveChangesAsync();
+    }
+        }
+
+        public async Task RemoveUserRoleAsync(long userId, long roleId)
+        {
+            var userRole = await _context.UserRoles
+                .FirstOrDefaultAsync(ur => ur.UserId == userId && ur.RoleId == roleId);
+
+            if (userRole != null)
+            {
+                _context.UserRoles.Remove(userRole);
+                await _context.SaveChangesAsync();
+            }
         }
 
     }

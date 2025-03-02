@@ -62,8 +62,7 @@ namespace Authentication.Infrastructure.Repositories;
         /// </summary>
         public async Task<OauthToken> GetByAccessTokenAsync(string accessToken)
         {
-            if (string.IsNullOrEmpty(accessToken))
-                return null;
+
 
             return await _tokens
                 .FirstOrDefaultAsync(t => t.AccessToken == accessToken);
@@ -74,8 +73,7 @@ namespace Authentication.Infrastructure.Repositories;
         /// </summary>
         public async Task<OauthToken> GetByRefreshTokenAsync(string refreshToken)
         {
-            if (string.IsNullOrEmpty(refreshToken))
-                return null;
+
 
             return await _tokens
                 .FirstOrDefaultAsync(t => t.RefreshToken == refreshToken);
@@ -86,8 +84,7 @@ namespace Authentication.Infrastructure.Repositories;
         /// </summary>
         public async Task RevokeAllTokensForUserAsync(string username)
         {
-            if (string.IsNullOrEmpty(username))
-                return;
+
 
             var userTokens = await _tokens
                 .Where(t => t.UserName == username)

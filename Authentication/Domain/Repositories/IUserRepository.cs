@@ -13,6 +13,11 @@ namespace Authentication.Domain.Repositories
         Task<bool> SaveChangesAsync();
         Task<User> GetUserByPhoneNumber(string phoneNumber);
         Task<User> GetUserById(long userId);
-        Task<UserRole> GetUserRolesByUserId(long id);
+        Task<ICollection<UserRole>> GetUserRolesAsync(long userId);
+        Task<ICollection<string>> GetUserRoleTitlesAsync(long userId);
+        Task<UserRole?> GetDefaultUserRoleAsync(long userId);
+        Task<bool> IsUserInRoleAsync(long userId, string roleName);
+        Task AddUserRoleAsync(long userId, long roleId, bool isDefault = false);
+        Task RemoveUserRoleAsync(long userId, long roleId);
 }
 }

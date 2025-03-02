@@ -12,14 +12,14 @@ using Application;
 using Authentication.Domain.Entities;
 using Authentication.Domain.Enums;
 using Authentication.Domain.Repositories;
+using Authentication.Infrastructure.Services;
 using Domain.Repositories;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 
-namespace Authentication.Application
-{
+namespace Authentication.Application;
     /// <summary>
     /// Implements OAuth 2.1 authorization server functionality with OpenID Connect support
     /// </summary>
@@ -27,15 +27,15 @@ namespace Authentication.Application
     {
         private readonly IApplicationRepository _applicationRepository;
         private readonly IUserPropertyRepository _userPropertyRepo;
+        private readonly DistributedCacheService _cache;
         private readonly IUserRepository _userRepo;
+        private readonly TokenService _tokenService;
         private readonly OtpService _otpService;
         private readonly CheckboxCaptchaService _checkBox;
-        private readonly TokenService _tokenService;
         private readonly PuzzleCaptchaService _puzzleService;
         private readonly IOAuthTokenRepository _oauthRepo;
         private readonly ILogger<OAuthService> _logger;
         //private readonly IAuditLogService _auditLogService;
-        private readonly IDistributedCache _cache;
         private readonly IConfiguration _configuration;
         
         // Cache keys
@@ -44,6 +44,7 @@ namespace Authentication.Application
         private const string PKCE_VERIFIER_PREFIX = "pkce_verifier:";
         
         public OAuthService(
+            DistributedCacheService cache,
             IOAuthTokenRepository oauthRepo,
             PuzzleCaptchaService puzzleCaptchaService,
             IUserPropertyRepository userPropertyRepository,
@@ -54,13 +55,12 @@ namespace Authentication.Application
             IUserRepository userRepository,
             ILogger<OAuthService> logger,
             //IAuditLogService auditLogService,
-            IDistributedCache cache,
             IConfiguration configuration)
         {
+            _tokenService = tokenService;
             _oauthRepo = oauthRepo;
             _puzzleService = puzzleCaptchaService;
             _userPropertyRepo = userPropertyRepository;
-            _tokenService = tokenService;
             _checkBox = checkboxCaptchaService;
             _applicationRepository = applicationRepository;
             _userRepo = userRepository;
@@ -165,10 +165,10 @@ namespace Authentication.Application
                 
                 // Track failed attempts by client ID in a more robust way
                 string failedAttemptsKey = $"failed_attempts:{clientId}";
-                //int failedAttempts = await GetCachedValueAsync<int>(failedAttemptsKey) ?? 0;
+                int failedAttempts = await _cache.GetAsync<int>(failedAttemptsKey);
                 failedAttempts++;
                 
-                await SetCachedValueAsync(failedAttemptsKey, failedAttempts, TimeSpan.FromHours(1));
+                await _cache.SetAsync(failedAttemptsKey, failedAttempts, TimeSpan.FromHours(1));
                 
                 if (failedAttempts > 3)
                 {
@@ -208,10 +208,8 @@ namespace Authentication.Application
                     }
                 }
 
-                // Generate secure authorization code with proper expiration
                 string authCode = GenerateSecureAuthCode();
                 
-                // Store auth code with expiration time and metadata
                 var authCodeInfo = new AuthCodeInfo
                 {
                     ClientId = clientId,
@@ -222,14 +220,14 @@ namespace Authentication.Application
                     CodeChallenge = codeChallenge,
                     CodeChallengeMethod = codeChallengeMethod,
                     CreatedAt = DateTime.UtcNow,
-                    ExpiresAt = DateTime.UtcNow.AddMinutes(10) // Auth codes expire after 10 minutes
+                    ExpiresAt = DateTime.UtcNow.AddMinutes(10) 
                 };
                 
                 // Store in distributed cache
-                await SetCachedValueAsync($"{AUTH_CODE_PREFIX}{authCode}", authCodeInfo, TimeSpan.FromMinutes(10));
+                await _cache.SetAsync($"{AUTH_CODE_PREFIX}{authCode}", authCodeInfo, TimeSpan.FromMinutes(10));
                 
                 // Reset failed attempts on success
-                await SetCachedValueAsync(failedAttemptsKey, 0, TimeSpan.FromHours(1));
+                await _cache.SetAsync(failedAttemptsKey, 0, TimeSpan.FromHours(1));
                 
                 _logger.LogInformation("Authorization code generated successfully for client: {ClientId}", clientId);
                 //await _auditLogService.LogSecurityEventAsync("AUTH_CODE_GENERATED", $"Client: {clientId}");
@@ -269,7 +267,7 @@ namespace Authentication.Application
                 _logger.LogInformation("Token exchange request for client ID: {ClientId}", clientId);
                 
                 // Get authorization code from cache
-                var authCodeInfo = await GetCachedValueAsync<AuthCodeInfo>($"{AUTH_CODE_PREFIX}{code}");
+                var authCodeInfo = await _cache.GetAsync<AuthCodeInfo>($"{AUTH_CODE_PREFIX}{code}");
                 
                 if (authCodeInfo == null || authCodeInfo.ExpiresAt < DateTime.UtcNow)
                 {
@@ -291,7 +289,7 @@ namespace Authentication.Application
                         authCodeInfo.ClientId, clientId);
                     
                     //await _auditLogService.LogSecurityEventAsync("AUTH_FAILURE", 
-                        $"Client ID mismatch during code exchange. Expected: {authCodeInfo.ClientId}, Actual: {clientId}");
+                    //    $"Client ID mismatch during code exchange. Expected: {authCodeInfo.ClientId}, Actual: {clientId}";
                     
                     return new TokenResult
                     {
@@ -479,7 +477,7 @@ namespace Authentication.Application
                         user.LoginAttempt, username);
                     
                     //await _auditLogService.LogSecurityEventAsync("FAILED_LOGIN", 
-                        $"User: {username}, Attempts: {user.LoginAttempt}, IP: {ipAddress}");
+                    //    $"User: {username}, Attempts: {user.LoginAttempt}, IP: {ipAddress}");
                     
                     // Check if we need to lock the account
                     if (logPol != null && user.LoginAttempt > 5)
@@ -495,7 +493,7 @@ namespace Authentication.Application
                         
                         _logger.LogWarning("Account locked due to too many failed attempts: {Username}", username);
                         //await _auditLogService.LogSecurityEventAsync("ACCOUNT_LOCKED", 
-                            $"User: {username}, Duration: {lockDuration}");
+                        //    $"User: {username}, Duration: {lockDuration}");
                         
                         return new AuthResult
                         {
@@ -529,13 +527,13 @@ namespace Authentication.Application
                 
                 _logger.LogInformation("Successful login for user: {Username}", username);
                 //await _auditLogService.LogSecurityEventAsync("SUCCESSFUL_LOGIN", 
-                    $"User: {username}, IP: {ipAddress}");
+                //    $"User: {username}, IP: {ipAddress}");
 
                 // Handle 2FA if enabled
                 if (!user.TwoFactorEnabled)
                 {
                     // Update token with user info
-                    token.UserName = user.Username;
+                    token.SetUserName(user.Username);
                     await _oauthRepo.UpdateAsync(token);
                     
                     // Get user roles for additional claims
@@ -547,11 +545,11 @@ namespace Authentication.Application
                     var scopes = application?.ClientScope?.Split(' ') ?? new[] { "profile" };
                     
                     // Regenerate access token with user ID and roles
+
                     var newAccessToken = _tokenService.GenerateAccessToken(
                         user.Id,
                         token.ClientId,
-                        string.Join(" ", scopes),
-                        roles?.Select(r => r.Role).ToList()
+                        string.Join(" ", scopes)
                     );
                     
                     token.AccessToken = newAccessToken;
@@ -574,7 +572,7 @@ namespace Authentication.Application
                  _otpService.SendOtp(user.PhoneNumber, otpCode);
                 
                 // Store user ID in token for OTP verification
-                token.UserName = user.Username;
+                token.SetUserName(user.Username);
                 await _oauthRepo.UpdateAsync(token);
                 
                 _logger.LogInformation("OTP sent for user: {Username}", username);
@@ -713,8 +711,7 @@ namespace Authentication.Application
                 var accessToken = _tokenService.GenerateAccessToken(
                     user.Id,
                     token.ClientId,
-                    string.Join(" ", scopes),
-                    roles?.Select(r => r.Title).ToList()
+                    string.Join(" ", scopes)
                 );
                 
                 var refreshToken = _tokenService.GenerateRefreshToken();
@@ -824,8 +821,7 @@ namespace Authentication.Application
                 var newAccessToken = _tokenService.GenerateAccessToken(
                     user.Id,
                     tokenEntity.ClientId,
-                    string.Join(" ", scopes),
-                    roles?.Select(r => r.Title).ToList()
+                    string.Join(" ", scopes)
                 );
                 
                 var newRefreshToken = _tokenService.GenerateRefreshToken();
@@ -910,7 +906,7 @@ namespace Authentication.Application
                     tokenEntity.UserName, clientId);
                     
                 //await _auditLogService.LogSecurityEventAsync("TOKEN_REVOKED", 
-                    $"User: {tokenEntity.UserName}, Client: {clientId}");
+                //    $"User: {tokenEntity.UserName}, Client: {clientId}");
                 
                 return true;
             }
@@ -992,28 +988,28 @@ namespace Authentication.Application
                 }
                 
                 // Check password history to prevent reuse if policy requires it
-                if (confPass.IsPolicyNeeded)
-                {
-                    try
-                    {
-                        // This requires implementing password history in the UserProperty entity
-                        bool isPasswordReused = await _userPropertyRepo.IsPasswordInHistoryAsync(user.Id, newPassword);
-                        if (isPasswordReused)
-                        {
-                            return new PassResult
-                            {
-                                Success = false,
-                                Password = null,
-                                Message = "You cannot reuse a previous password",
-                                Error = "password_reuse"
-                            };
-                        }
-                    }
-                    catch (NotImplementedException)
-                    {
-                        _logger.LogWarning("Password history check not implemented");
-                    }
-                }
+                // if (confPass.IsPolicyNeeded)
+                // {
+                //     try
+                //     {
+                //         // This requires implementing password history in the UserProperty entity
+                //         bool isPasswordReused = await _userPropertyRepo.IsPasswordInHistoryAsync(user.Id, newPassword);
+                //         if (isPasswordReused)
+                //         {
+                //             return new PassResult
+                //             {
+                //                 Success = false,
+                //                 Password = null,
+                //                 Message = "You cannot reuse a previous password",
+                //                 Error = "password_reuse"
+                //             };
+                //         }
+                //     }
+                //     catch (NotImplementedException)
+                //     {
+                //         _logger.LogWarning("Password history check not implemented");
+                //     }
+                // }
 
                 // Update password
                 user.UserProperty.SetPassowrd(newPassword);
@@ -1072,7 +1068,7 @@ namespace Authentication.Application
                 DateTime expiryTime = DateTime.UtcNow.AddHours(1);
                 
                 // Store reset token
-                await SetCachedValueAsync($"reset_token:{resetToken}", 
+                await _cache.SetAsync($"reset_token:{resetToken}", 
                     new PasswordResetInfo
                     {
                         Username = username,
@@ -1087,7 +1083,7 @@ namespace Authentication.Application
                 // In production, send via email service:
                 // await _emailService.SendEmailAsync(user.Email, "Password Reset", $"Click here to reset your password: {resetLink}");
                 
-                await _auditLogService.LogSecurityEventAsync("PASSWORD_RESET_INITIATED", $"User: {username}");
+                //await _auditLogService.LogSecurityEventAsync("PASSWORD_RESET_INITIATED", $"User: {username}");
                 
                 return new ResetResult
                 {
@@ -1118,7 +1114,7 @@ namespace Authentication.Application
                 _logger.LogInformation("Password reset completion attempted with token");
                 
                 // Verify token
-                var resetInfo = await GetCachedValueAsync<PasswordResetInfo>($"reset_token:{resetToken}");
+                var resetInfo = await _cache.GetAsync<PasswordResetInfo>($"reset_token:{resetToken}");
                 if (resetInfo == null || resetInfo.ExpiresAt < DateTime.UtcNow)
                 {
                     _logger.LogWarning("Invalid or expired password reset token");
@@ -1182,7 +1178,7 @@ namespace Authentication.Application
                 //await _oauthRepo.RevokeAllTokensForUserAsync(resetInfo.Username);
                 
                 _logger.LogInformation("Password reset successful for user: {Username}", resetInfo.Username);
-                await _auditLogService.LogSecurityEventAsync("PASSWORD_RESET_COMPLETE", $"User: {resetInfo.Username}");
+                //await _auditLogService.LogSecurityEventAsync("PASSWORD_RESET_COMPLETE", $"User: {resetInfo.Username}");
                 
                 return new ResetResult
                 {
@@ -1319,7 +1315,7 @@ namespace Authentication.Application
             const int timeWindowMinutes = 15;
             
             // Get current OTP requests from cache
-            var otpRequests = await GetCachedValueAsync<List<DateTime>>($"{OTP_REQUEST_PREFIX}{username}");
+            var otpRequests = await _cache.GetAsync<List<DateTime>>($"{OTP_REQUEST_PREFIX}{username}");
             if (otpRequests == null)
             {
                 otpRequests = new List<DateTime>();
@@ -1346,14 +1342,14 @@ namespace Authentication.Application
         public async Task LogOtpRequestAsync(string username)
         {
             // Get current OTP requests from cache
-            var otpRequests = await GetCachedValueAsync<List<DateTime>>($"{OTP_REQUEST_PREFIX}{username}") 
+            var otpRequests = await _cache.GetAsync<List<DateTime>>($"{OTP_REQUEST_PREFIX}{username}") 
                            ?? new List<DateTime>();
             
             // Add current request
             otpRequests.Add(DateTime.UtcNow);
             
             // Store updated list
-            await SetCachedValueAsync($"{OTP_REQUEST_PREFIX}{username}", otpRequests, TimeSpan.FromMinutes(15));
+            await _cache.SetAsync($"{OTP_REQUEST_PREFIX}{username}", otpRequests, TimeSpan.FromMinutes(15));
             
             //await _auditLogService.LogSecurityEventAsync("OTP_REQUESTED", $"User: {username}");
         }
@@ -1365,7 +1361,7 @@ namespace Authentication.Application
             // This should be properly implemented in the LoginPolicy entity class
             // For now, this is a mock implementation
             policy.SetLockStartDateTime(DateTime.UtcNow);
-            policy.LockEndDateTime(DateTime.UtcNow.AddMinutes(10));
+            policy.SetLockEndDateTime(DateTime.UtcNow.AddMinutes(10));
         }
         
         private string MaskPhoneNumber(string phoneNumber)
@@ -1448,7 +1444,6 @@ namespace Authentication.Application
             if (string.IsNullOrEmpty(codeVerifier) || string.IsNullOrEmpty(codeChallenge))
                 return false;
                 
-            // S256 requires SHA256 hash of the code verifier
             if (codeChallengeMethod == "S256")
             {
                 using var sha256 = SHA256.Create();
@@ -1467,7 +1462,6 @@ namespace Authentication.Application
 
         private string GetCurrentIpAddress()
         {
-            // In a real implementation, get this from HttpContext
             return "127.0.0.1";
         }
 
@@ -1500,29 +1494,8 @@ namespace Authentication.Application
                 Encoding.UTF8.GetBytes(b));
         }
         
-        private async Task<T> GetCachedValueAsync<T>(string key) where T : class
-        {
-            var data = await _cache.GetAsync(key);
-            if (data == null)
-                return null;
-                
-            var jsonString = Encoding.UTF8.GetString(data);
-            return System.Text.Json.JsonSerializer.Deserialize<T>(jsonString);
-        }
-        
-        private async Task SetCachedValueAsync<T>(string key, T value, TimeSpan expiration) where T : class
-        {
-            var jsonString = System.Text.Json.JsonSerializer.Serialize(value);
-            var data = Encoding.UTF8.GetBytes(jsonString);
-            
-            await _cache.SetAsync(key, data, new DistributedCacheEntryOptions
-            {
-                AbsoluteExpirationRelativeToNow = expiration
-            });
-        }
-    }
 
-    // Additional classes for OAuth flow
+
 
     public class AuthCodeInfo
     {
@@ -1593,10 +1566,10 @@ namespace Authentication.Application
         public bool TwoFactorRequired { get; set; }
         public bool PasswordChangeRequired { get; set; }
         public int ExpiresIn { get; set; }
-        public string TokenType { get; set; }
-        public string Scope { get; set; }
-        public string PendingToken { get; set; }
-        public string PhoneHint { get; set; }
+        public string? TokenType { get; set; }
+        public string? Scope { get; set; }
+        public string? PendingToken { get; set; }
+        public string? PhoneHint { get; set; }
         public int LockDuration { get; set; }
         public int AttemptsRemaining { get; set; }
     }

@@ -65,7 +65,7 @@ public class CheckboxCaptchaService
                 // Return empty token to indicate rate limit (handled by caller)
                 return string.Empty;
             }
-        }`
+        }
         
         // Store token in distributed cache with expiration
         string cacheKey = $"{CAPTCHA_PREFIX}{token}";

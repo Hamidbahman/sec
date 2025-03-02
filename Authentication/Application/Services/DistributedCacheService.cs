@@ -27,7 +27,7 @@ namespace Authentication.Infrastructure.Services
         /// <summary>
         /// Retrieves a cached value by key
         /// </summary>
-        public async Task<T> GetAsync<T>(string key)
+        public async Task<T>? GetAsync<T>(string key)
         {
             var data = await _cache.GetAsync(key);
             if (data == null)

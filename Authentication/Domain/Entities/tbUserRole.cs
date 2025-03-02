@@ -30,5 +30,10 @@ namespace Authentication.Domain.Entities;
             RoleId = roleId;
             IsDefault = isDefault;
         }
+
+    public void SetDefaultStatus(bool isDefault)
+    {
+        IsDefault = isDefault;
+    }
     }
 
