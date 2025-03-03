@@ -38,44 +38,53 @@ namespace Authentication.Application
             return Unauthorized(new { Message = result.Message });
         }
 
-        [HttpPost("verify-otp")]
-        public async Task<IActionResult> VerifyOtp([FromBody] OtpRequest request)
-        {
-            var result = await _smsService.ValidateOtp(request.OtpCode);
-            if (result.Success) return Ok(new { Token = result.Token });
 
-            return Unauthorized(new { Message = result.Message });
-        }
-
-
-
-        [HttpPost("test-send-otp")]
-public async Task<IActionResult> TestSendOtp([FromBody] TestOtpRequest request)
-{
-    if (string.IsNullOrEmpty(request.PhoneNumber))
-    {
-        return BadRequest(new { success = false, message = "Phone number is required" });
-    }
-    
-    try
-    {
-        // Generate a 6-digit OTP and send it to the provided phone number
-        string otp = await _smsService.SendSmsAsync(request.PhoneNumber);
         
-        // For testing purposes, we return the OTP code in the response
-        // In production, you would not include the actual OTP in the response
-        return Ok(new 
-        { 
-            success = true, 
-            message = "OTP sent successfully", 
-            expiresInMinutes = 5
+[HttpPost("validate-otp")]
+public IActionResult ValidateOtp([FromBody] OtpValidationRequest request)
+{
+    bool isValid = _smsService.ValidateOtp(request.PhoneNumber, request.Otp);
+
+    if (!isValid)
+    {
+        return BadRequest(new
+        {
+            success = false,
+            message = "Invalid or expired OTP"
         });
     }
-    catch (Exception ex)
+
+    return Ok(new
     {
-        return StatusCode(500, new { success = false, message = "Failed to send OTP", error = ex.Message });
-    }
+        success = true,
+        message = "OTP validated successfully"
+    });
 }
+
+
+
+[HttpPost("send-otp")]
+public async Task<IActionResult> SendOtp([FromBody] OtpRequest request)
+{
+    bool success = await _smsService.SendSmsAsync(request.PhoneNumber);
+
+    if (!success)
+    {
+        return BadRequest(new
+        {
+            success = false,
+            message = "Failed to send OTP"
+        });
+    }
+
+    return Ok(new
+    {
+        success = true,
+        message = "OTP sent successfully",
+        expiresInMinutes = 5
+    });
+}
+
 
 
 
@@ -133,7 +142,8 @@ public class ChangePasswordRequest
 
     public class OtpRequest
     {
-        public string Username { get; set; }
+        public string PhoneNumber { get; set; }
         public string OtpCode { get; set; }
     }
+
 

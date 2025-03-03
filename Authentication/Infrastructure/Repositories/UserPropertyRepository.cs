@@ -23,6 +23,20 @@ public class UserPropertyRepository : IUserPropertyRepository
             .FirstOrDefaultAsync(); // Get the first matching record or null
 
     }
+    public async Task<bool> IsPasswordReusedAsync(long userId, string newPassword)
+{
+    var userProperty = await _context.UserProperties
+        .Where(up => up.UserId == userId)
+        .Select(up => up.Password) // Get the hashed password
+        .FirstOrDefaultAsync();
+
+    if (userProperty == null)
+        return false;
+
+    // Compare new password (after hashing) with stored hash
+    return BCrypt.Net.BCrypt.Verify(newPassword, userProperty);
+}
+
 
     public async Task<bool> SaveChangesAsync()
     {

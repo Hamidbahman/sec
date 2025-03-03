@@ -30,8 +30,9 @@ public class UserProperty
         ConfigurationPasswordId = configurationPasswordId;
     }
 
-    public void SetPassowrd(string newPassword)
-    {
-        Password = newPassword;
-    }
+public void SetPassword(string newPassword)
+{
+    Password = BCrypt.Net.BCrypt.HashPassword(newPassword);
+}
+
 }

@@ -7,6 +7,7 @@ namespace Domain.Repositories;
 public interface IUserPropertyRepository
 {
     Task<ConfigurationPassword?> GetConfigurationPasswordByUserIdAsync(long configurationPasswordId);
+    Task<bool> IsPasswordReusedAsync(long userId, string newPassword);
 
     Task<bool> SaveChangesAsync();
 }

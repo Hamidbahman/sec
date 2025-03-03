@@ -228,13 +228,20 @@ public async Task<PassResult> ChangePassword(string username, string exPassword,
         };
     }
 
-    // 🔹 Verify old password using a secure hash
-    if (!BCrypt.Net.BCrypt.Verify(exPassword, user.UserProperty.PasswordHash))
+    // 🔹 Check if stored password is hashed (Backward Compatibility)
+    bool isHashed = user.UserProperty.Password.StartsWith("$2a$") || user.UserProperty.Password.StartsWith("$2b$");
+
+    // 🔹 Verify old password
+    bool passwordMatches = isHashed
+        ? BCrypt.Net.BCrypt.Verify(exPassword, user.UserProperty.Password) // Check hashed passwords
+        : user.UserProperty.Password == exPassword; // Check plaintext (for old records)
+
+    if (!passwordMatches)
     {
         return new PassResult
         {
             Success = false,
-            Message = "Invalid username or password" // Don't expose if it's the password or username
+            Message = "Invalid username or password"
         };
     }
 
@@ -299,9 +306,8 @@ public async Task<PassResult> ChangePassword(string username, string exPassword,
     // 🔹 Hash the new password securely
     string hashedPassword = BCrypt.Net.BCrypt.HashPassword(newPassword);
 
-    // 🔹 Update password securely
-    user.UserProperty.PasswordHash = hashedPassword;
-    user.UserProperty.LastPasswordChangeDate = DateTime.UtcNow;
+    // 🔹 Store the hashed password in the existing string column
+    user.UserProperty.SetPassword(newPassword);
 
     await _userPropertyRepo.SaveChangesAsync();
     await _userRepo.SaveChangesAsync(); // Consider wrapping both in a Unit of Work
