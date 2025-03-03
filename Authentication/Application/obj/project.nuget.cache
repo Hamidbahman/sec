@@ -1,11 +1,12 @@
 {
   "version": 2,
-  "dgSpecHash": "1M+epBJBFWI=",
+  "dgSpecHash": "E9xhVivLWE0=",
   "success": true,
-  "projectFilePath": "C:\\Users\\hamid.RYMOND\\14\\sec\\authentication\\Application\\Application.csproj",
+  "projectFilePath": "C:\\Users\\hamid.RYMOND\\14\\sec\\Authentication\\Application\\Application.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\hamid.RYMOND\\.nuget\\packages\\azure.core\\1.38.0\\azure.core.1.38.0.nupkg.sha512",
     "C:\\Users\\hamid.RYMOND\\.nuget\\packages\\azure.identity\\1.11.4\\azure.identity.1.11.4.nupkg.sha512",
+    "C:\\Users\\hamid.RYMOND\\.nuget\\packages\\bcrypt.net-next\\4.0.3\\bcrypt.net-next.4.0.3.nupkg.sha512",
     "C:\\Users\\hamid.RYMOND\\.nuget\\packages\\humanizer.core\\2.14.1\\humanizer.core.2.14.1.nupkg.sha512",
     "C:\\Users\\hamid.RYMOND\\.nuget\\packages\\kavenegardotnetcore\\1.0.7\\kavenegardotnetcore.1.0.7.nupkg.sha512",
     "C:\\Users\\hamid.RYMOND\\.nuget\\packages\\microsoft.aspnetcore.http\\2.3.0\\microsoft.aspnetcore.http.2.3.0.nupkg.sha512",

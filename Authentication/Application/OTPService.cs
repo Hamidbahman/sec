@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Threading.Tasks;
 using Application;
 using Kavenegar;
@@ -11,6 +12,7 @@ namespace Authentication.Application
     {
         private readonly KavenegarApi _api;
         private readonly string _sender;
+        private readonly ConcurrentDictionary<string, OtpInfo> _otpStorage = new();
 
         public OtpService(IOptions<KavenegarOptions> options)
         {
@@ -54,5 +56,25 @@ public async Task<string> SendSmsAsync(string receptor)
 
     return null; // Return null if sending fails
 }
+
+public bool ValidateOtp(string otpReceived)
+        {
+            if (_otpStorage.TryGetValue( out var otpInfo))
+            {
+                if (otpInfo.ExpiresAt > DateTime.UtcNow && otpInfo.Code == otpReceived)
+                {
+                    _otpStorage.TryRemove(phoneNumber, out _);
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    public class OtpInfo
+    {
+        public string Code { get; set; }
+        public DateTime ExpiresAt { get; set; }
     }
 }
+

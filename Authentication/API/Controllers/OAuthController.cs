@@ -41,7 +41,7 @@ namespace Authentication.Application
         [HttpPost("verify-otp")]
         public async Task<IActionResult> VerifyOtp([FromBody] OtpRequest request)
         {
-            var result = await _authService.VerifyOtpAsync(request.Username, request.OtpCode);
+            var result = await _smsService.ValidateOtp(request.OtpCode);
             if (result.Success) return Ok(new { Token = result.Token });
 
             return Unauthorized(new { Message = result.Message });
@@ -77,10 +77,7 @@ public async Task<IActionResult> TestSendOtp([FromBody] TestOtpRequest request)
     }
 }
 
-public class TestOtpRequest
-{
-    public string PhoneNumber { get; set; }
-}
+
 
 
     [HttpPost("change-password")]
@@ -103,6 +100,11 @@ public class TestOtpRequest
             return StatusCode(500, new { Message = "An error occurred.", Error = ex.Message });
         }
     }
+}
+
+public class TestOtpRequest
+{
+    public string PhoneNumber { get; set; }
 }
 
 public class ChangePasswordRequest

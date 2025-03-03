@@ -4,8 +4,6 @@ using Authentication.Application;
 using Authentication.Infrastructure.Repositories;
 using Data;
 
-using Microsoft.Extensions.Options;
-using Authentication.Application;
 using Authentication.Domain.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Domain.Repositories;

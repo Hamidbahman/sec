@@ -72,61 +72,62 @@ namespace Authentication.Application
             return authCode;
         }
 
-        public async Task<AuthResult> LoginAsync(string username, string password, string authenticationCode)
+public async Task<AuthResult> LoginAsync(string username, string password, string authenticationCode)
+{
+    var user = await _userRepo.GetByUsernameAsync(username);
+    
+    // Validate authentication code
+    if (!_authCodes.ContainsKey(authenticationCode))
+    {
+        throw new AuthenticationException("Invalid authentication code");
+    }
+
+    if (user == null || user.UserProperty.Password != password)
+    {
+        return new AuthResult
         {
-            var user = await _userRepo.GetByUsernameAsync(username);
-            
-            // Validate authentication code
-            if (!_authCodes.ContainsKey(authenticationCode))
-            {
-                throw new AuthenticationException("Invalid authentication code");
-            }
+            Success = false,
+            Message = "Invalid username or password",
+            TwoFactorRequired = false
+        };
+    }
+    user.IncrementLoginAttempt();
+    var logPol = await _userRepo.GetLoginPoliciesByUserID(user.Id.ToString());
+    if (logPol != null && user.LoginAttempt > 5)
+    {
+        logPol.SetLockType(Domain.Enums.LockTypes.TemporaryLock);
+        throw new AuthenticationException("Account is locked");
+    }
 
-            if (user == null || user.UserProperty.Password != password)
-            {
-                return new AuthResult
-                {
-                    Success = false,
-                    Message = "Invalid username or password",
-                    TwoFactorRequired = false
-                };
-            }
-            user.IncrementLoginAttempt();
-            var logPol = await _userRepo.GetLoginPoliciesByUserID(user.Id.ToString());
-            if(logPol != null && user.LoginAttempt>5)
-            {
-                logPol.SetLockType (Domain.Enums.LockTypes.TemporaryLock);
-                throw new AuthenticationException("Account is locked");
-            }
+    await _userRepo.SaveChangesAsync();
 
-            await _userRepo.SaveChangesAsync();
+    if (!user.TwoFactorEnabled)
+    {
+        _authCodes.TryRemove(authenticationCode, out _);
+        var accessToken = _tokenService.GenerateAccessToken(user.Id);
+        var refreshToken = _tokenService.GenerateRefreshToken();
+        
+        // Save OAuth token in database
+        await SaveOauthTokenAsync(user.Id.ToString(), username, accessToken, refreshToken, tokenType: 1);
 
+        return new AuthResult
+        {
+            Success = true,
+            Token = accessToken,
+            TwoFactorRequired = false
+        };
+    }
 
+    // Generate and send OTP
+    await _otpService.SendSmsAsync(user.PhoneNumber);
 
-            if (!user.TwoFactorEnabled)
-            {
-                _authCodes.TryRemove(authenticationCode, out _);
-                var token = _tokenService.GenerateAccessToken(user.Id);
-
-                return new AuthResult
-                {
-                    Success = true,
-                    Token = token,
-                    TwoFactorRequired = false
-                };
-            }
-
-
-            // Generate and send OTP
-            await _otpService.SendSmsAsync(user.PhoneNumber);
-
-            return new AuthResult
-            {
-                Success = false,
-                Message = "OTP Required",
-                TwoFactorRequired = true
-            };
-        }
+    return new AuthResult
+    {
+        Success = false,
+        Message = "OTP Required",
+        TwoFactorRequired = true
+    };
+}
 
 public async Task<AuthResult> VerifyOtpAsync(string username, string otpCode)
 {
@@ -153,14 +154,10 @@ public async Task<AuthResult> VerifyOtpAsync(string username, string otpCode)
             TwoFactorRequired = false
         };
     }
-    
-
-
-
 
     var expirationD = confPass.CreateDate.AddDays(confPass.ExpireDaysAmount);
     // Check if the password is expired
-    if (expirationD <= DateTime.UtcNow)  // Assuming ExpirationDate is a DateTime field
+    if (expirationD <= DateTime.UtcNow)
     {
         return new AuthResult
         {
@@ -170,7 +167,9 @@ public async Task<AuthResult> VerifyOtpAsync(string username, string otpCode)
         };
     }
 
-    if(user.IpRange == "")
+    // Validate OTP
+    bool isOtpValid =  _otpService.ValidateOtp(otpCode);
+    if (!isOtpValid)
     {
         return new AuthResult
         {
@@ -180,20 +179,22 @@ public async Task<AuthResult> VerifyOtpAsync(string username, string otpCode)
         };
     }
 
-
-    // Validate OTP
-    var token = _tokenService.GenerateAccessToken(user.Id);
-        return new AuthResult
-        {
-            Success = true,
-            Token = token,
-            TwoFactorRequired = false,
-            Message = "AccessToken Generated Authentication Successful"
-        };
-
-    // OAuth Table Command/Update
+    // Generate access & refresh tokens
+    var accessToken = _tokenService.GenerateAccessToken(user.Id);
+    var refreshToken = _tokenService.GenerateRefreshToken();
     
+    // Save OAuth token in database
+    await SaveOauthTokenAsync(user.Id.ToString(), username, accessToken, refreshToken, tokenType: 1);
+
+    return new AuthResult
+    {
+        Success = true,
+        Token = accessToken,
+        TwoFactorRequired = false,
+        Message = "AccessToken Generated. Authentication Successful"
+    };
 }
+
 
 private async Task SaveOauthTokenAsync(string clientId, string userName, string accessToken, string refreshToken, short tokenType)
 {
@@ -202,97 +203,116 @@ private async Task SaveOauthTokenAsync(string clientId, string userName, string 
 }
 
 
+
+
+
 public async Task<PassResult> ChangePassword(string username, string exPassword, string newPassword, string confirmPassword)
 {
     var user = await _userRepo.GetByUsernameAsync(username);
     if (user == null)
-        throw new Exception("No user found");
-
-    // Check if old password matches
-    if (exPassword != user.UserProperty.Password)
     {
         return new PassResult
         {
             Success = false,
-            Password = null,
-            Message = "Password is incorrect"
+            Message = "Invalid username or password"
         };
     }
 
-    // Get password configuration
     var confPass = await _userPropertyRepo.GetConfigurationPasswordByUserIdAsync(user.UserProperty.ConfigurationPasswordId);
     if (confPass == null)
     {
-        throw new Exception("Configuration settings not found");
+        return new PassResult
+        {
+            Success = false,
+            Message = "Password policy settings not found"
+        };
     }
 
-    // 1. Check if newPassword and confirmPassword match
+    // 🔹 Verify old password using a secure hash
+    if (!BCrypt.Net.BCrypt.Verify(exPassword, user.UserProperty.PasswordHash))
+    {
+        return new PassResult
+        {
+            Success = false,
+            Message = "Invalid username or password" // Don't expose if it's the password or username
+        };
+    }
+
+    // 🔹 Ensure new password matches confirmation
     if (newPassword != confirmPassword)
     {
         return new PassResult
         {
             Success = false,
-            Password = null,
             Message = "Passwords do not match"
         };
     }
 
-    // 2. Check password length
+    // 🔹 Password policy checks
     if (newPassword.Length < confPass.MinPassLength || newPassword.Length > confPass.MaxPassLength)
     {
         return new PassResult
         {
             Success = false,
-            Password = null,
             Message = $"Password must be between {confPass.MinPassLength} and {confPass.MaxPassLength} characters long."
         };
     }
 
-    // 3. Check if password contains at least one special character
     if (confPass.MustContainChar && !newPassword.Any(ch => !char.IsLetterOrDigit(ch)))
     {
         return new PassResult
         {
             Success = false,
-            Password = null,
             Message = "Password must contain at least one special character."
         };
     }
 
-    if (confPass.MustContainUpperCase == true && !newPassword.Any(char.IsUpper))
+    if (confPass.MustContainUpperCase && !newPassword.Any(char.IsUpper))
     {
         return new PassResult
         {
             Success = false,
-            Password = null,
             Message = "Password must contain at least one uppercase letter."
         };
     }
 
-    // 5. Check if password is too numeric
-    int numericCount = newPassword.Count(char.IsDigit);
-    if (numericCount >= confPass.NumericPassNotEqual)
+    if (newPassword.Count(char.IsDigit) >= confPass.NumericPassNotEqual)
     {
         return new PassResult
         {
             Success = false,
-            Password = null,
             Message = "Password cannot be mostly numeric."
         };
     }
 
-    // 6. If all checks pass, update password
-    user.UserProperty.SetPassowrd(newPassword);
-    await _userPropertyRepo.SaveChangesAsync(); // You may need a setter method in your entity
-    await _userRepo.SaveChangesAsync();
+    // 🔹 Check password history to prevent reuse
+    var isReused = await _userPropertyRepo.IsPasswordReusedAsync(user.Id, newPassword);
+    if (isReused)
+    {
+        return new PassResult
+        {
+            Success = false,
+            Message = "You cannot reuse a previous password."
+        };
+    }
+
+    // 🔹 Hash the new password securely
+    string hashedPassword = BCrypt.Net.BCrypt.HashPassword(newPassword);
+
+    // 🔹 Update password securely
+    user.UserProperty.PasswordHash = hashedPassword;
+    user.UserProperty.LastPasswordChangeDate = DateTime.UtcNow;
+
+    await _userPropertyRepo.SaveChangesAsync();
+    await _userRepo.SaveChangesAsync(); // Consider wrapping both in a Unit of Work
 
     return new PassResult
     {
         Success = true,
-        Password = newPassword,
         Message = "Password changed successfully"
     };
 }
+
 
 
 
