@@ -1,24 +1,58 @@
+using System;
+using System.Threading.Tasks;
+using Application;
+using Kavenegar;
+using Kavenegar.Core.Exceptions;
+using Microsoft.Extensions.Options;
 
-namespace Authentication.Application;
-public class OtpService
+namespace Authentication.Application
 {
-    private readonly Dictionary<long, string> _otpStore = new();
-    private readonly Random _random = new();
-
-    public string GenerateOtp(long userId)
+    public class OtpService
     {
-        var otp = _random.Next(100000, 999999).ToString();
-        _otpStore[userId] = otp;
-        return otp;
+        private readonly KavenegarApi _api;
+        private readonly string _sender;
+
+        public OtpService(IOptions<KavenegarOptions> options)
+        {
+            _api = new KavenegarApi(options.Value.ApiKey);
+            _sender = "2000660110";
+        }
+
+        /// <summary>
+        /// Generates a 6-digit OTP asynchronously.
+        /// </summary>
+        public async Task<string> GenerateOtpAsync()
+        {
+            return await Task.Run(() =>
+            {
+                Random random = new Random();
+                return random.Next(100000, 999999).ToString();
+            });
+        }
+
+        /// <summary>
+        /// Generates an OTP and sends it via SMS using Kavenegar API.
+        /// </summary>
+public async Task<string> SendSmsAsync(string receptor)
+{
+    string otpCode = await GenerateOtpAsync(); // Generate OTP
+
+    try
+    {
+        var result = await _api.Send(_sender, receptor, otpCode);
+        Console.WriteLine($"SMS Sent: MessageId={result.Messageid}");
+        return otpCode; // Return the OTP after sending
+    }
+    catch (ApiException ex)
+    {
+        Console.WriteLine("API Error: " + ex.Message);
+    }
+    catch (HttpException ex)
+    {
+        Console.WriteLine("HTTP Error: " + ex.Message);
     }
 
-    public bool ValidateOtp(long userId, string otpCode)
-    {
-        return _otpStore.ContainsKey(userId) && _otpStore[userId] == otpCode;
-    }
-
-    public void SendOtp(string phoneNumber, string otp)
-    {
-        Console.WriteLine($"Sending OTP {otp} to {phoneNumber}"); // Replace with SMS service
+    return null; // Return null if sending fails
+}
     }
 }

@@ -30,13 +30,15 @@ builder.Services.AddDbContext<AutheDbContext>(options =>
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IApplicationRepository, ApplicationRepository>();
 builder.Services.AddScoped<IUserPropertyRepository, UserPropertyRepository>();
-builder.Services.AddScoped<OAuthService>();
-builder.Services.AddScoped<OtpService>();
+builder.Services.AddScoped<IOAuthTokenRepository, OauthTokenRepository>();
+builder.Services.Configure<KavenegarOptions>(builder.Configuration.GetSection("KavenegarOptions"));
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<TokenValidationService>();
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<CheckboxCaptchaService>();
 builder.Services.AddScoped<PuzzleCaptchaService>();
+builder.Services.AddTransient<OtpService>();
+builder.Services.AddScoped<OAuthService>();
 builder.Services.AddHttpContextAccessor();
 
 
@@ -47,7 +49,6 @@ builder.Services.AddCors(options =>
         .AllowAnyMethod()
         .AllowAnyHeader());
 });
-//builder.Services.AddScoped<RecaptchaService>();
 
 
 

@@ -118,8 +118,7 @@ namespace Authentication.Application
 
 
             // Generate and send OTP
-            var otpCode = _otpService.GenerateOtp(user.Id);
-            _otpService.SendOtp(user.PhoneNumber, otpCode);
+            await _otpService.SendSmsAsync(user.PhoneNumber);
 
             return new AuthResult
             {

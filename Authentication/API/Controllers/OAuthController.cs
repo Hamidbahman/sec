@@ -9,9 +9,11 @@ namespace Authentication.Application
     public class AuthController : ControllerBase
     {
         private readonly OAuthService _authService;
+        private readonly OtpService _smsService;
 
-        public AuthController(OAuthService authService)
+        public AuthController(OAuthService authService, OtpService smsService)
         {
+            _smsService = smsService;
             _authService = authService;
         }
 
@@ -44,6 +46,41 @@ namespace Authentication.Application
 
             return Unauthorized(new { Message = result.Message });
         }
+
+
+
+        [HttpPost("test-send-otp")]
+public async Task<IActionResult> TestSendOtp([FromBody] TestOtpRequest request)
+{
+    if (string.IsNullOrEmpty(request.PhoneNumber))
+    {
+        return BadRequest(new { success = false, message = "Phone number is required" });
+    }
+    
+    try
+    {
+        // Generate a 6-digit OTP and send it to the provided phone number
+        string otp = await _smsService.SendSmsAsync(request.PhoneNumber);
+        
+        // For testing purposes, we return the OTP code in the response
+        // In production, you would not include the actual OTP in the response
+        return Ok(new 
+        { 
+            success = true, 
+            message = "OTP sent successfully", 
+            expiresInMinutes = 5
+        });
+    }
+    catch (Exception ex)
+    {
+        return StatusCode(500, new { success = false, message = "Failed to send OTP", error = ex.Message });
+    }
+}
+
+public class TestOtpRequest
+{
+    public string PhoneNumber { get; set; }
+}
 
 
     [HttpPost("change-password")]
