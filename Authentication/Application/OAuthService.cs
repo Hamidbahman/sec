@@ -168,7 +168,7 @@ public async Task<AuthResult> VerifyOtpAsync(string username, string otpCode)
     }
 
     // Validate OTP
-    bool isOtpValid =  _otpService.ValidateOtp(otpCode);
+    bool isOtpValid =  _otpService.ValidateOtp(otpCode, user.PhoneNumber);
     if (!isOtpValid)
     {
         return new AuthResult

@@ -146,4 +146,9 @@ public class ChangePasswordRequest
         public string OtpCode { get; set; }
     }
 
+    public class OtpValidationRequest
+    {
+        public string Otp {get;set;}
+        public string PhoneNumber {get;set;}
+    }
 
