@@ -9,9 +9,11 @@ namespace Authentication.Application
     public class AuthController : ControllerBase
     {
         private readonly OAuthService _authService;
+        private readonly OtpService _smsService;
 
-        public AuthController(OAuthService authService)
+        public AuthController(OAuthService authService, OtpService smsService)
         {
+            _smsService = smsService;
             _authService = authService;
         }
 
@@ -36,14 +38,55 @@ namespace Authentication.Application
             return Unauthorized(new { Message = result.Message });
         }
 
-        [HttpPost("verify-otp")]
-        public async Task<IActionResult> VerifyOtp([FromBody] OtpRequest request)
-        {
-            var result = await _authService.VerifyOtpAsync(request.Username, request.OtpCode);
-            if (result.Success) return Ok(new { Token = result.Token });
 
-            return Unauthorized(new { Message = result.Message });
-        }
+        
+[HttpPost("validate-otp")]
+public IActionResult ValidateOtp([FromBody] OtpValidationRequest request)
+{
+    bool isValid = _smsService.ValidateOtp(request.PhoneNumber, request.Otp);
+
+    if (!isValid)
+    {
+        return BadRequest(new
+        {
+            success = false,
+            message = "Invalid or expired OTP"
+        });
+    }
+
+    return Ok(new
+    {
+        success = true,
+        message = "OTP validated successfully"
+    });
+}
+
+
+
+[HttpPost("send-otp")]
+public async Task<IActionResult> SendOtp([FromBody] OtpRequest request)
+{
+    bool success = await _smsService.SendSmsAsync(request.PhoneNumber);
+
+    if (!success)
+    {
+        return BadRequest(new
+        {
+            success = false,
+            message = "Failed to send OTP"
+        });
+    }
+
+    return Ok(new
+    {
+        success = true,
+        message = "OTP sent successfully",
+        expiresInMinutes = 5
+    });
+}
+
+
+
 
 
     [HttpPost("change-password")]
@@ -66,6 +109,11 @@ namespace Authentication.Application
             return StatusCode(500, new { Message = "An error occurred.", Error = ex.Message });
         }
     }
+}
+
+public class TestOtpRequest
+{
+    public string PhoneNumber { get; set; }
 }
 
 public class ChangePasswordRequest
@@ -94,7 +142,8 @@ public class ChangePasswordRequest
 
     public class OtpRequest
     {
-        public string Username { get; set; }
+        public string PhoneNumber { get; set; }
         public string OtpCode { get; set; }
     }
+
 
