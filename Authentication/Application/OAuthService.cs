@@ -7,13 +7,15 @@ using Application;
 using Authentication.Domain.Entities;
 using Authentication.Domain.Repositories;
 using Domain.Repositories;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
-namespace Authentication.Application
-{
+namespace Authentication.Application;
+
     public class OAuthService
     {
         private readonly IApplicationRepository _applicationRepository;
         private readonly IUserPropertyRepository _userPropertyRepo;
+        private readonly IConfigurationSessionRepository _sessionRepo;
         private readonly IUserRepository _userRepo;
         private readonly OtpService _otpService;
         private readonly CheckboxCaptchaService _checkBox;
@@ -23,6 +25,7 @@ namespace Authentication.Application
         private static readonly ConcurrentDictionary<string, string> _authCodes = new();
 
         public OAuthService(
+            IConfigurationSessionRepository configurationSessionRepository,
             IOAuthTokenRepository oauthRepo,
             PuzzleCaptchaService puzzleCaptchaService,
             IUserPropertyRepository userPropertyRepository,
@@ -33,6 +36,7 @@ namespace Authentication.Application
             IApplicationRepository applicationRepository,
             IUserRepository userRepository)
         {
+            _sessionRepo = configurationSessionRepository;
             _OauthRepo = oauthRepo;
             _puzzleService = puzzleCaptchaService;
             _userPropertyRepo = userPropertyRepository;
@@ -45,11 +49,27 @@ namespace Authentication.Application
 
         public async Task<string?> GenerateAuthorizationCodeAsync(string clientId, string clientSecret, string? userCaptchaToken = null)
         {
+            
+
             var failedAttempt = 0;
             var application = await _applicationRepository.GetApplicationByClientIdAsync(clientId);
             if (application == null || clientSecret != application.ClientSecret)
                 return null;
+
+            var session = await _sessionRepo.GetByApplicationIdAsync(application.Id);
+
+            if(!session.IsConcurrentActive)
+            {
+                throw new Exception("Application is not concurrently available");
+            }
             
+            if(application.ConfigurationSession.ConcurrencyCount > 100)
+            {
+                throw new Exception("Concurrency problem");
+            }
+
+
+
             var configLock = await _applicationRepository.GetConfigurationLockAsync(clientId);
             failedAttempt ++;
             await _applicationRepository.SaveChangesAsync();
@@ -76,7 +96,6 @@ public async Task<AuthResult> LoginAsync(string username, string password, strin
 {
     var user = await _userRepo.GetByUsernameAsync(username);
     
-    // Validate authentication code
     if (!_authCodes.ContainsKey(authenticationCode))
     {
         throw new AuthenticationException("Invalid authentication code");
@@ -107,7 +126,6 @@ public async Task<AuthResult> LoginAsync(string username, string password, strin
         var accessToken = _tokenService.GenerateAccessToken(user.Id);
         var refreshToken = _tokenService.GenerateRefreshToken();
         
-        // Save OAuth token in database
         await SaveOauthTokenAsync(user.Id.ToString(), username, accessToken, refreshToken, tokenType: 1);
 
         return new AuthResult
@@ -118,7 +136,6 @@ public async Task<AuthResult> LoginAsync(string username, string password, strin
         };
     }
 
-    // Generate and send OTP
     await _otpService.SendSmsAsync(user.PhoneNumber);
 
     return new AuthResult
@@ -156,7 +173,6 @@ public async Task<AuthResult> VerifyOtpAsync(string username, string otpCode)
     }
 
     var expirationD = confPass.CreateDate.AddDays(confPass.ExpireDaysAmount);
-    // Check if the password is expired
     if (expirationD <= DateTime.UtcNow)
     {
         return new AuthResult
@@ -167,7 +183,6 @@ public async Task<AuthResult> VerifyOtpAsync(string username, string otpCode)
         };
     }
 
-    // Validate OTP
     bool isOtpValid =  _otpService.ValidateOtp(otpCode, user.PhoneNumber);
     if (!isOtpValid)
     {
@@ -179,11 +194,11 @@ public async Task<AuthResult> VerifyOtpAsync(string username, string otpCode)
         };
     }
 
-    // Generate access & refresh tokens
     var accessToken = _tokenService.GenerateAccessToken(user.Id);
     var refreshToken = _tokenService.GenerateRefreshToken();
+
     
-    // Save OAuth token in database
+    
     await SaveOauthTokenAsync(user.Id.ToString(), username, accessToken, refreshToken, tokenType: 1);
 
     return new AuthResult
@@ -211,132 +226,82 @@ public async Task<PassResult> ChangePassword(string username, string exPassword,
     var user = await _userRepo.GetByUsernameAsync(username);
     if (user == null)
     {
-        return new PassResult
-        {
-            Success = false,
-            Message = "Invalid username or password"
-        };
+        return new PassResult { Success = false, Message = "Invalid username or password" };
     }
 
     var confPass = await _userPropertyRepo.GetConfigurationPasswordByUserIdAsync(user.UserProperty.ConfigurationPasswordId);
     if (confPass == null)
     {
-        return new PassResult
-        {
-            Success = false,
-            Message = "Password policy settings not found"
-        };
+        return new PassResult { Success = false, Message = "Password policy settings not found" };
     }
 
-    // 🔹 Check if stored password is hashed (Backward Compatibility)
     bool isHashed = user.UserProperty.Password.StartsWith("$2a$") || user.UserProperty.Password.StartsWith("$2b$");
 
-    // 🔹 Verify old password
     bool passwordMatches = isHashed
-        ? BCrypt.Net.BCrypt.Verify(exPassword, user.UserProperty.Password) // Check hashed passwords
-        : user.UserProperty.Password == exPassword; // Check plaintext (for old records)
+        ? BCrypt.Net.BCrypt.Verify(exPassword, user.UserProperty.Password)
+        : user.UserProperty.Password == exPassword;
 
     if (!passwordMatches)
     {
-        return new PassResult
-        {
-            Success = false,
-            Message = "Invalid username or password"
-        };
+        return new PassResult { Success = false, Message = "Invalid username or password" };
     }
 
-    // 🔹 Ensure new password matches confirmation
     if (newPassword != confirmPassword)
     {
-        return new PassResult
-        {
-            Success = false,
-            Message = "Passwords do not match"
-        };
+        return new PassResult { Success = false, Message = "Passwords do not match" };
     }
 
-    // 🔹 Password policy checks
     if (newPassword.Length < confPass.MinPassLength || newPassword.Length > confPass.MaxPassLength)
     {
-        return new PassResult
-        {
-            Success = false,
-            Message = $"Password must be between {confPass.MinPassLength} and {confPass.MaxPassLength} characters long."
-        };
+        return new PassResult { Success = false, Message = $"Password must be between {confPass.MinPassLength} and {confPass.MaxPassLength} characters long." };
     }
 
     if (confPass.MustContainChar && !newPassword.Any(ch => !char.IsLetterOrDigit(ch)))
     {
-        return new PassResult
-        {
-            Success = false,
-            Message = "Password must contain at least one special character."
-        };
+        return new PassResult { Success = false, Message = "Password must contain at least one special character." };
     }
 
     if (confPass.MustContainUpperCase && !newPassword.Any(char.IsUpper))
     {
-        return new PassResult
-        {
-            Success = false,
-            Message = "Password must contain at least one uppercase letter."
-        };
+        return new PassResult { Success = false, Message = "Password must contain at least one uppercase letter." };
     }
 
-    if (newPassword.Count(char.IsDigit) >= confPass.NumericPassNotEqual)
+    if (newPassword.Count(char.IsDigit) < confPass.NumericPassNotEqual)
     {
-        return new PassResult
-        {
-            Success = false,
-            Message = "Password cannot be mostly numeric."
-        };
+        return new PassResult { Success = false, Message = $"Password must contain at least {confPass.NumericPassNotEqual} digits." };
     }
 
-    // 🔹 Check password history to prevent reuse
     var isReused = await _userPropertyRepo.IsPasswordReusedAsync(user.Id, newPassword);
     if (isReused)
     {
-        return new PassResult
-        {
-            Success = false,
-            Message = "You cannot reuse a previous password."
-        };
+        return new PassResult { Success = false, Message = "You cannot reuse a previous password." };
     }
 
-    // 🔹 Hash the new password securely
     string hashedPassword = BCrypt.Net.BCrypt.HashPassword(newPassword);
-
-    // 🔹 Store the hashed password in the existing string column
-    user.UserProperty.SetPassword(newPassword);
+    user.UserProperty.SetPassword(hashedPassword);
 
     await _userPropertyRepo.SaveChangesAsync();
-    await _userRepo.SaveChangesAsync(); // Consider wrapping both in a Unit of Work
+    await _userRepo.SaveChangesAsync();
+    
+    return new PassResult{Success = true, Message = "Password changed successfully"};
 
-    return new PassResult
-    {
-        Success = true,
-        Message = "Password changed successfully"
-    };
+    }
 }
-
-
 
 
   
+
+public class PassResult 
+{
+    public bool Success {get;set;}
+    public string? Password {get;set;}
+    public string? Message {get;set;}
 }
 
-    public class PassResult 
-    {
-        public bool Success {get;set;}
-        public string Password {get;set;}
-        public string? Message {get;set;}
-    }
-
-    public class AuthResult
-    {
-        public bool Success { get; set; }
-        public string? Token { get; set; }
-        public string? Message { get; set; }
-        public bool TwoFactorRequired { get; set; }
-    }
+public class AuthResult
+{
+    public bool Success { get; set; }
+    public string? Token { get; set; }
+    public string? Message { get; set; }
+    public bool TwoFactorRequired { get; set; }
 }

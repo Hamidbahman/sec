@@ -55,5 +55,7 @@ namespace Authentication.Domain.Repositories
         /// </summary>
         /// <returns>A collection of all configuration sessions</returns>
         Task<IEnumerable<ConfigurationSession>> GetAllAsync();
+
+        Task<bool> SaveChangesAsync();
     }
 }

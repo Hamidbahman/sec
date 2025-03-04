@@ -21,20 +21,34 @@ public class CheckboxCaptchaService
         if (context != null && context.Session != null)
         {
             context.Session.SetString("CaptchaToken", token);
+            context.Session.SetString("CaptchaTimestamp", DateTime.UtcNow.ToString());
         }
 
         return token;
     }
 
     public bool ValidateCaptchaToken(string userToken)
-    {
-        var context = _httpContextAccessor.HttpContext;
-        if (context != null && context.Session != null)
-        {
-            var storedToken = context.Session.GetString("CaptchaToken");
-            return storedToken != null && storedToken == userToken;
-        }
+{
+    var context = _httpContextAccessor.HttpContext;
 
-        return false;
+    if (context != null && context.Session != null)
+    {
+        var storedToken = context.Session.GetString("CaptchaToken");
+        var timestampStr = context.Session.GetString("CaptchaTimestamp");
+
+        if (storedToken == null || timestampStr == null)
+            return false;
+
+        if (!DateTime.TryParse(timestampStr, out var timestamp))
+            return false;
+
+        if ((DateTime.UtcNow - timestamp).TotalMinutes > 5)
+            return false;
+
+        return storedToken == userToken;
     }
+
+    return false;
+}
+
 }

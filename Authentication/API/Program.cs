@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Domain.Repositories;
 using Infrastructure.Repositories;
 using Application;
+using Authentication.Domain.Entities;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -29,6 +30,7 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IApplicationRepository, ApplicationRepository>();
 builder.Services.AddScoped<IUserPropertyRepository, UserPropertyRepository>();
 builder.Services.AddScoped<IOAuthTokenRepository, OauthTokenRepository>();
+builder.Services.AddScoped<IConfigurationSessionRepository, ConfigurationSessionRepository>();
 builder.Services.Configure<KavenegarOptions>(builder.Configuration.GetSection("KavenegarOptions"));
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<TokenValidationService>();
@@ -60,7 +62,6 @@ app.UseEndpoints(endpoints=>
     endpoints.MapControllers();
 });
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();

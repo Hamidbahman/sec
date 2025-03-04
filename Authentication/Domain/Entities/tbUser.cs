@@ -105,7 +105,8 @@ namespace Authentication.Domain.Entities;
     UserProperty = userProperty;
     LoginPolicy = loginPolicy;
     UserBiometric = userBiometric;
-    UserRoles = userRoles ?? new List<UserRole>(); // ✅ Ensure it's never null
+    UserRoles = userRoles ?? new List<UserRole>(); 
+    
 }
     public void IncrementLoginAttempt()
     {

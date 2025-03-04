@@ -56,5 +56,11 @@ namespace Authentication.Infrastructure.Repositories
         {
             return await _context.ConfigurationSessions.ToListAsync();
         }
+
+        public async Task<bool> SaveChangesAsync()
+        {
+            await _context.SaveChangesAsync();
+            return true;
+        }
     }
 }

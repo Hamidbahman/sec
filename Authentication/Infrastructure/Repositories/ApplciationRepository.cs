@@ -44,8 +44,11 @@ namespace Authenitcation.Infrastructure.Repositories;
 
     public async Task<ConfigurationSession?> GetConfigurationSessionAsync(string clientId)
     {
-        return await _context.ConfigurationSessions
-            .FirstOrDefaultAsync(cs => cs.Application.ClientId == clientId);
+        return await _context.Applications
+            .AsSplitQuery()
+            .Where(app => app.ClientId == clientId)
+            .Select(app => app.ConfigurationSession) 
+            .FirstOrDefaultAsync();
     }
 
     public async Task<bool> SaveChangesAsync()

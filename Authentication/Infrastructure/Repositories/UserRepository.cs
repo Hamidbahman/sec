@@ -5,6 +5,8 @@ using Authentication.Domain.Enums;
 using Authentication.Domain.Repositories;
 using Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+
 
 namespace Authentication.Infrastructure.Repositories
 {
@@ -20,8 +22,8 @@ namespace Authentication.Infrastructure.Repositories
         {
             return await _context.Users
                 .AsSplitQuery()
-                .Include(u => u.UserProperty)  // Load UserProperty (password stored here)
-                .Include(u => u.LoginPolicy)  // Load LoginPolicy for rules
+                .Include(u => u.UserProperty) 
+                .Include(u => u.LoginPolicy)  
                 .FirstOrDefaultAsync(u => u.Username == username);        
         }
 
@@ -31,7 +33,7 @@ namespace Authentication.Infrastructure.Repositories
             if (user == null || user.UserProperty == null)
                 return false;
 
-            return user.UserProperty.Password == password; // ⚠️ Use hashing in production!
+            return user.UserProperty.Password == password;
         }
         public async Task<bool> CheckLoginPolicyAsync(string username)
         {
@@ -42,21 +44,19 @@ namespace Authentication.Infrastructure.Repositories
             var policy = user.LoginPolicy;
             var now = DateTime.UtcNow;
 
-            // Check if the user is locked based on the lock type
             if (policy.LockTypes == LockTypes.TemporaryLock)
             {
-                // Check if the current time falls within the lock window
                 if (now >= policy.LockStartDateTime && now <= policy.LockEndDateTime)
                 {
-                    return false; // User is currently locked
+                    return false; 
                 }
             }
             else if (policy.LockTypes == LockTypes.PermanentLock)
             {
-                return false; // User is permanently locked
+                return false; 
             }
 
-            return true; // User is allowed to log in
+            return true; 
         }
 
         public async Task<LoginPolicy> GetLoginPoliciesByUserID(string userId)
@@ -69,25 +69,32 @@ namespace Authentication.Infrastructure.Repositories
         }
 
         public async Task<(string Username, string Password)?> GetUserCredentialsAsync(string username)
-{
-    var user = await GetByUsernameAsync(username);
-    if (user == null || user.UserProperty == null)
-        return null;
+        {
+            var user = await GetByUsernameAsync(username);
+            if (user == null || user.UserProperty == null)
+                return null;
 
-    return (user.Username, user.UserProperty.Password);
-}
+            return (user.Username, user.UserProperty.Password);
+        }
 
-    public async Task<bool> SaveChangesAsync()
-    {
+        public async Task<bool> SaveChangesAsync()
+        {
 
-        return await _context.SaveChangesAsync() > 0;
+            return await _context.SaveChangesAsync() > 0;
 
-    }
+        }
 
         public async Task<User> GetUserByPhoneNumber(string phoneNumber)
         {
             User user = await _context.Users.FirstOrDefaultAsync(u=>u.PhoneNumber == phoneNumber);
             return user;
         }
-    }
+
+
+        public async Task<IDbContextTransaction> BeginTransactionAsync()
+        {
+            return await _context.Database.BeginTransactionAsync();
+        }
+    }   
+
 }
