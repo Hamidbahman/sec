@@ -10,7 +10,7 @@ public class LoginPolicy : BaseEntity
 
     [ForeignKey("User")]
     public long UserId { get; private set; }
-    public User User { get; private set; } // One-to-One Relationship (User must exist)
+    public User User { get; private set; } 
 
     public DateTime LockStartDateTime { get; private set; }
     public DateTime LockEndDateTime { get; private set; }

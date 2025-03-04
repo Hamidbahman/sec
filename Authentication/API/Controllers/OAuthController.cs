@@ -40,25 +40,33 @@ namespace Authentication.Application
 
 
         
-[HttpPost("validate-otp")]
-public IActionResult ValidateOtp([FromBody] OtpValidationRequest request)
-{
-    bool isValid = _smsService.ValidateOtp(request.PhoneNumber, request.Otp);
 
-    if (!isValid)
+[HttpPost("validate-otp")]
+public async Task<IActionResult> ValidateOtp([FromBody] OtpCodeOnlyRequest request)
+{
+    var authResult = await _authService.VerifyOtpAsync(request.Otp);
+
+    if (!authResult.Success)
     {
         return BadRequest(new
         {
             success = false,
-            message = "Invalid or expired OTP"
+            message = authResult.Message,
+            twoFactorRequired = authResult.TwoFactorRequired
         });
     }
 
     return Ok(new
     {
         success = true,
-        message = "OTP validated successfully"
+        message = authResult.Message,
+        token = authResult.Token
     });
+}
+
+public class OtpCodeOnlyRequest
+{
+    public string Otp { get; set; }
 }
 
 
@@ -111,10 +119,6 @@ public async Task<IActionResult> SendOtp([FromBody] OtpRequest request)
     }
 }
 
-public class TestOtpRequest
-{
-    public string PhoneNumber { get; set; }
-}
 
 public class ChangePasswordRequest
 {
@@ -149,6 +153,6 @@ public class ChangePasswordRequest
     public class OtpValidationRequest
     {
         public string Otp {get;set;}
-        public string PhoneNumber {get;set;}
+        public string Username {get;set;}
     }
 
