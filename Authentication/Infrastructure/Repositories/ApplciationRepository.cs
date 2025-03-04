@@ -42,6 +42,12 @@ namespace Authenitcation.Infrastructure.Repositories;
         .FirstOrDefaultAsync();
     }
 
+    public async Task<ConfigurationSession?> GetConfigurationSessionAsync(string clientId)
+    {
+        return await _context.ConfigurationSessions
+            .FirstOrDefaultAsync(cs => cs.Application.ClientId == clientId);
+    }
+
     public async Task<bool> SaveChangesAsync()
     {
         await _context.SaveChangesAsync();
