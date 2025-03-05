@@ -147,7 +147,6 @@ public class ChangePasswordRequest
     public class OtpRequest
     {
         public string PhoneNumber { get; set; }
-        public string OtpCode { get; set; }
     }
 
     public class OtpValidationRequest

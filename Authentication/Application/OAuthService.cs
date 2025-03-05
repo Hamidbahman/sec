@@ -136,33 +136,57 @@ public class OAuthService
         };
     }
 
-    public async Task<AuthResult> VerifyOtpAsync(string otpCode)
+public async Task<AuthResult> VerifyOtpAsync(string otpCode)
+{
+    // First, validate the OTP
+    if (!_otpService.ValidateOtp(otpCode))
     {
-        string phoneNumber = _otpService.GetUsernameByOtp(otpCode);
-        var user = await _userRepo.GetUserByPhoneNumber(phoneNumber);
-        
-        if (user == null)
+        return new AuthResult
         {
-            return new AuthResult
-            {
-                Success = false,
-                Message = "User not found",
-                TwoFactorRequired = false
-            };
-        }
+            Success = false,
+            Message = "Invalid or expired OTP",
+            TwoFactorRequired = false
+        };
+    }
 
-
-        var confPass = await _userPropertyRepo.GetConfigurationPasswordByUserIdAsync(user.Id);
-
-        if (confPass == null)
+    // Correctly get the phone number
+    string phoneNumber = _otpService.GetPhoneNumberByOtp(otpCode);
+    
+    if (string.IsNullOrEmpty(phoneNumber))
+    {
+        return new AuthResult
         {
-            return new AuthResult
-            {
-                Success = false,
-                Message = "User password configuration not found",
-                TwoFactorRequired = false
-            };
-        }
+            Success = false,
+            Message = "Unable to retrieve phone number",
+            TwoFactorRequired = false
+        };
+    }
+
+    var user = await _userRepo.GetUserByPhoneNumber(phoneNumber);
+    
+    if (user == null)
+    {
+        return new AuthResult
+        {
+            Success = false,
+            Message = "User not found",
+            TwoFactorRequired = false
+        };
+    }
+
+    var confPass = await _userPropertyRepo.GetConfigurationPasswordByUserIdAsync(user.Id);
+
+    if (confPass == null)
+    {
+        return new AuthResult
+        {
+            Success = false,
+            Message = "User password configuration not found",
+            TwoFactorRequired = false
+        };
+    }
+
+    // Rest of the method remains the same...
 
         var expirationD = confPass.CreateDate.AddDays(confPass.ExpireDaysAmount);
         if (expirationD <= DateTime.UtcNow)
@@ -194,6 +218,8 @@ public class OAuthService
             Message = "AccessToken Generated. Authentication Successful"
         };
     }
+
+
 
 
     

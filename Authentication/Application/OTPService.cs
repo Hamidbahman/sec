@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
 using System.Threading.Tasks;
 using Application;
 using Kavenegar;
@@ -12,9 +13,7 @@ namespace Authentication.Application
     {
         private readonly KavenegarApi _api;
         private readonly string _sender;
-
         private readonly ConcurrentDictionary<string, OtpInfo> _otpStorage = new();
-        
         private readonly ConcurrentDictionary<string, string> _otpToPhoneMap = new();
 
         public OtpService(IOptions<KavenegarOptions> options)
@@ -24,21 +23,24 @@ namespace Authentication.Application
         }
 
         /// <summary>
-        /// Generates a 6-digit OTP asynchronously.
+        /// Generates a secure 6-digit OTP asynchronously.
         /// </summary>
         private async Task<string> GenerateOtpAsync()
         {
             return await Task.Run(() =>
             {
-                Random random = new Random();
-                return random.Next(100000, 999999).ToString();
+                using var rng = new RNGCryptoServiceProvider();
+                var bytes = new byte[4];
+                rng.GetBytes(bytes);
+                int value = BitConverter.ToInt32(bytes, 0) & 0x7FFFFFFF; // Ensure positive number
+                return (value % 900000 + 100000).ToString(); // Ensure 6-digit OTP
             });
         }
 
         /// <summary>
         /// Sends an OTP via SMS and stores it with an expiration time.
         /// </summary>
-        public async Task<bool> SendSmsAsync(string phoneNumber, string username = null)
+        public async Task<bool> SendSmsAsync(string phoneNumber)
         {
             string otpCode = await GenerateOtpAsync();
 
@@ -47,100 +49,71 @@ namespace Authentication.Application
                 var result = await _api.Send(_sender, phoneNumber, otpCode);
                 Console.WriteLine($"SMS Sent to {phoneNumber}: MessageId={result.Messageid}");
 
-                _otpStorage[phoneNumber] = new OtpInfo
+                var otpInfo = new OtpInfo
                 {
                     Code = otpCode,
-                    ExpiresAt = DateTime.UtcNow.AddMinutes(5),
-                    Username = username
+                    ExpiresAt = DateTime.UtcNow.AddMinutes(5)
                 };
-                
-                _otpToPhoneMap[otpCode] = phoneNumber;
 
+                _otpStorage[phoneNumber] = otpInfo;
+                _otpToPhoneMap[otpCode] = phoneNumber;
+                
                 return true;
             }
             catch (ApiException ex)
             {
                 Console.WriteLine("API Error: " + ex.Message);
+                return false;
             }
             catch (HttpException ex)
             {
                 Console.WriteLine("HTTP Error: " + ex.Message);
+                return false;
             }
-
-            return false; 
         }
 
         /// <summary>
-        /// Validates the OTP without requiring phone number.
+        /// Validates the OTP without requiring a phone number.
         /// </summary>
         public bool ValidateOtp(string otpCode)
         {
-            if (_otpToPhoneMap.TryGetValue(otpCode, out string phoneNumber))
+            if (_otpToPhoneMap.TryRemove(otpCode, out string phoneNumber) && _otpStorage.TryRemove(phoneNumber, out OtpInfo otpInfo))
             {
-                if (_otpStorage.TryGetValue(phoneNumber, out OtpInfo otpInfo))
+                if (otpInfo.ExpiresAt < DateTime.UtcNow)
                 {
-                    if (otpInfo.ExpiresAt < DateTime.UtcNow)
-                    {
-                        CleanupOtp(phoneNumber, otpCode);
-                        return false; 
-                    }
-
-                    if (otpInfo.Code == otpCode)
-                    {
-                        CleanupOtp(phoneNumber, otpCode);
-                        return true;
-                    }
+                    return false;
                 }
+                return otpInfo.Code == otpCode;
             }
-
             return false;
         }
 
         /// <summary>
-        /// Gets the username associated with an OTP code.
+        /// Gets the phone number associated with an OTP code.
         /// </summary>
-        public string GetUsernameByOtp(string otpCode)
+        public string GetPhoneNumberByOtp(string otpCode)
         {
-            if (_otpToPhoneMap.TryGetValue(otpCode, out string phoneNumber) && 
-                _otpStorage.TryGetValue(phoneNumber, out OtpInfo otpInfo))
+            if (_otpToPhoneMap.TryGetValue(otpCode, out string phoneNumber) && _otpStorage.TryGetValue(phoneNumber, out OtpInfo otpInfo))
             {
-                return otpInfo.Username;
+                return phoneNumber;
             }
             return null;
         }
-        
+
         /// <summary>
-        /// Original validate method for backward compatibility
+        /// Original validate method for backward compatibility.
         /// </summary>
         public bool ValidateOtp(string phoneNumber, string otpReceived)
         {
-            if (_otpStorage.TryGetValue(phoneNumber, out OtpInfo otpInfo))
+            if (_otpStorage.TryRemove(phoneNumber, out OtpInfo otpInfo))
             {
-
                 if (otpInfo.ExpiresAt < DateTime.UtcNow)
                 {
-                    CleanupOtp(phoneNumber, otpInfo.Code);
                     return false;
                 }
-
-                // Check if OTP matches
-                if (otpInfo.Code == otpReceived)
-                {
-                    CleanupOtp(phoneNumber, otpReceived);
-                    return true;
-                }
+                return otpInfo.Code == otpReceived;
             }
-
-            return false; 
-        }
-        
-        /// <summary>
-        /// Clean up OTP entries after use or expiration.
-        /// </summary>
-        private void CleanupOtp(string phoneNumber, string otpCode)
-        {
-            _otpStorage.TryRemove(phoneNumber, out _);
-            _otpToPhoneMap.TryRemove(otpCode, out _);
+            return false;
         }
 
         /// <summary>
@@ -150,12 +123,6 @@ namespace Authentication.Application
         {
             public string Code { get; set; }
             public DateTime ExpiresAt { get; set; }
-            public string Username { get; set; }
         }
     }
 }
-
-
-
-
-
