@@ -5739,8 +5739,8 @@
         "net9.0": {
           "targetAlias": "net9.0",
           "projectReferences": {
-            "C:\\Users\\hamid.RYMOND\\02\\sec\\Authentication\\Infrastructure\\Infrastructure.csproj": {
-              "projectPath": "C:\\Users\\hamid.RYMOND\\02\\sec\\Authentication\\Infrastructure\\Infrastructure.csproj"
+            "C:\\Users\\hamid.RYMOND\\02\\sec\\authentication\\Infrastructure\\Infrastructure.csproj": {
+              "projectPath": "C:\\Users\\hamid.RYMOND\\02\\sec\\authentication\\Infrastructure\\Infrastructure.csproj"
             }
           }
         }

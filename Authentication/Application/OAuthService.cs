@@ -214,7 +214,8 @@ public async Task<AuthResult> VerifyOtpAsync(string otpCode)
             Success = true,
             Token = accessToken,
             TwoFactorRequired = false,
-            Message = "AccessToken Generated. Authentication Successful"
+            Message = "AccessToken Generated. Authentication Successful",
+            User = UserDetails.FromUser(user)
         };
     }
 
