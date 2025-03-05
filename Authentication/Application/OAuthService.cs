@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Security.Authentication;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using Application;
@@ -53,10 +54,13 @@ public class OAuthService
 
     public async Task<string?> GenerateAuthorizationCodeAsync(string clientId, string clientSecret, string? userCaptchaToken = null)
     {
-        // safer way for faliedAttempt (session)
+        
+        // safer way for failedAttempt (session)
         var failedAttempt = _httpContextAccessor.HttpContext?.Session.GetInt32("FailedAttempt") ?? 0;
         var application = await _applicationRepository.GetApplicationByClientIdAsync(clientId);
-        if (application == null || clientSecret != application.ClientSecret)
+        
+        // secure hashed clientSecret
+        if (application == null ||!SecureCompare(clientSecret, application.ClientSecret))
         {
             failedAttempt ++;
             _httpContextAccessor.HttpContext?.Session.SetInt32("FailedAttempt", failedAttempt);
@@ -77,14 +81,42 @@ public class OAuthService
             if (string.IsNullOrEmpty(userCaptchaToken))
                 return _checkBox.GenerateCaptchaToken();
 
-            if (!_checkBox.ValidateCaptchaToken(userCaptchaToken))
+            bool isValidCaptch = _checkBox.ValidateCaptchaToken(userCaptchaToken);
+            if(!isValidCaptch)
+            {
+                IncrementCaptchaFailureCount();
                 return "InvalidCaptcha";
+            }
         }
+        // catpcha attempts safe?
+        _httpContextAccessor.HttpContext?.Session.SetInt32("FailedAttempt", 0);
 
         string authCode = Guid.NewGuid().ToString();
         _authCodes.TryAdd(authCode, clientId);
         return authCode;
     }
+
+private void IncrementCaptchaFailureCount()
+{
+    var failedCaptchaAttempts = _httpContextAccessor.HttpContext?.Session.GetInt32("FailedCaptchaAttempts") ?? 0;
+    failedCaptchaAttempts++;
+    _httpContextAccessor.HttpContext?.Session.SetInt32("FailedCaptchaAttempts", failedCaptchaAttempts );
+
+    if(failedCaptchaAttempts> 3)
+    {
+
+    }
+
+}
+
+    
+private bool SecureCompare(string clientSecret, string storedHashedSecret)
+{
+    var enteredHash = HashingUtility.HashClientSecret(clientSecret);
+
+    return CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(enteredHash), Encoding.UTF8.GetBytes(storedHashedSecret));
+}
+
 
     public async Task<AuthResult> LoginAsync(string username, string password, string authenticationCode)
     {
@@ -353,10 +385,8 @@ public class UserDetails
             PictureType = user.PictureType
         };
     }
+
+
+
+
 }
-
-
-
-
-
-
