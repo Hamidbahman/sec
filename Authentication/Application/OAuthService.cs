@@ -7,12 +7,15 @@ using Application;
 using Authentication.Domain.Entities;
 using Authentication.Domain.Repositories;
 using Domain.Repositories;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace Authentication.Application;
 
 public class OAuthService
 {
+     private readonly IHttpContextAccessor _httpContextAccessor;
+
     private readonly IApplicationRepository _applicationRepository;
     private readonly IUserPropertyRepository _userPropertyRepo;
     private readonly IConfigurationSessionRepository _sessionRepo;
@@ -25,6 +28,7 @@ public class OAuthService
     private static readonly ConcurrentDictionary<string, string> _authCodes = new();
 
     public OAuthService(
+        IHttpContextAccessor httpContextAccessor,
         IConfigurationSessionRepository configurationSessionRepository,
         IOAuthTokenRepository oauthRepo,
         PuzzleCaptchaService puzzleCaptchaService,
@@ -35,6 +39,7 @@ public class OAuthService
         IApplicationRepository applicationRepository,
         IUserRepository userRepository)
     {
+        _httpContextAccessor = httpContextAccessor;
         _sessionRepo = configurationSessionRepository;
         _OauthRepo = oauthRepo;
         _puzzleService = puzzleCaptchaService;
@@ -48,15 +53,19 @@ public class OAuthService
 
     public async Task<string?> GenerateAuthorizationCodeAsync(string clientId, string clientSecret, string? userCaptchaToken = null)
     {
-        var failedAttempt = 0;
+        // safer way for faliedAttempt (session)
+        var failedAttempt = _httpContextAccessor.HttpContext?.Session.GetInt32("FailedAttempt") ?? 0;
         var application = await _applicationRepository.GetApplicationByClientIdAsync(clientId);
         if (application == null || clientSecret != application.ClientSecret)
+        {
+            failedAttempt ++;
+            _httpContextAccessor.HttpContext?.Session.SetInt32("FailedAttempt", failedAttempt);
             return null;
+        } 
 
 
 
         var configLock = await _applicationRepository.GetConfigurationLockAsync(clientId);
-        failedAttempt ++;
         await _applicationRepository.SaveChangesAsync();
         if(failedAttempt >3)
         {
