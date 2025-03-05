@@ -186,7 +186,6 @@ public async Task<AuthResult> VerifyOtpAsync(string otpCode)
         };
     }
 
-    // Rest of the method remains the same...
 
         var expirationD = confPass.CreateDate.AddDays(confPass.ExpireDaysAmount);
         if (expirationD <= DateTime.UtcNow)
@@ -345,3 +344,9 @@ public class UserDetails
         };
     }
 }
+
+
+
+
+
+
