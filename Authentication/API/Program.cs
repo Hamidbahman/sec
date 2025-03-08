@@ -1,31 +1,29 @@
-
-using Authenitcation.Infrastructure.Repositories;
 using Authentication.Application;
 using Authentication.Infrastructure.Repositories;
-using Data;
-
 using Microsoft.Extensions.Options;
-using Authentication.Application;
-using Authentication.Domain.Repositories;
 using Microsoft.EntityFrameworkCore;
+using StackExchange.Redis;
+using Kavenegar;
+using Microsoft.Extensions.Logging;
+using Authentication.Domain.Repositories;
+using Data;
+using Authenitcation.Infrastructure.Repositories;
 using Domain.Repositories;
-using Infrastructure.Repositories;
 using Application;
-
+using Infrastructure.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Configuration.AddJsonFile("Appsettings.json", optional: false, reloadOnChange: true);
+builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
 
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddControllers();
-builder.Services.AddSwaggerGen();
-
-
-builder.Services.AddDbContext<AutheDbContext>(options => 
+builder.Services.AddDbContext<AutheDbContext>(options =>
 {
-    options.UseSqlServer(builder.Configuration.GetConnectionString("Default"));    
+    options.UseSqlServer(builder.Configuration.GetConnectionString("Default"));
 });
+
+var redisConnectionString = builder.Configuration.GetValue<string>("Redis:ConnectionString");
+builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(redisConnectionString));
+
 
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IApplicationRepository, ApplicationRepository>();
@@ -34,34 +32,29 @@ builder.Services.AddScoped<OAuthService>();
 builder.Services.AddScoped<OtpService>();
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<TokenValidationService>();
-builder.Services.AddHttpClient();
 builder.Services.AddScoped<CheckboxCaptchaService>();
 builder.Services.AddScoped<PuzzleCaptchaService>();
+builder.Services.AddScoped<RecaptchaService>();
+builder.Services.AddScoped<IOAuthTokenRepository, OauthTokenRepository>();
+
+builder.Services.AddHttpClient();
+
 builder.Services.AddHttpContextAccessor();
 
+builder.Services.Configure<KavenegarOptions>(builder.Configuration.GetSection("Kavenegar"));
 
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowReactApp",
-    builder => builder.WithOrigins("http://localhost:3000")
-        .AllowAnyMethod()
-        .AllowAnyHeader());
-});
-//builder.Services.AddScoped<RecaptchaService>();
+builder.Services.AddLogging(builder => builder.AddConsole());
 
-
-
+builder.Services.AddControllers();
+builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseEndpoints(endpoints=>
-{
-    endpoints.MapControllers();
-});
+app.MapControllers();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -70,16 +63,11 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
 app.MapGet("/weatherforecast", () =>
 {
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
+    var summaries = new[] { "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching" };
+    var forecast = Enumerable.Range(1, 5).Select(index =>
+        new WeatherForecast(
             DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
             Random.Shared.Next(-20, 55),
             summaries[Random.Shared.Next(summaries.Length)]
@@ -91,6 +79,7 @@ app.MapGet("/weatherforecast", () =>
 
 app.Run();
 
+// WeatherForecast record for endpoint
 record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
 {
     public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);

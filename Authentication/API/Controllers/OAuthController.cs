@@ -39,7 +39,7 @@ namespace Authentication.Application
         [HttpPost("verify-otp")]
         public async Task<IActionResult> VerifyOtp([FromBody] OtpRequest request)
         {
-            var result = await _authService.VerifyOtpAsync(request.Username, request.OtpCode);
+            var result = await _authService.VerifyOtpAsync(request.OtpCode);
             if (result.Success) return Ok(new { Token = result.Token });
 
             return Unauthorized(new { Message = result.Message });

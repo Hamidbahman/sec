@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Net.Mail;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 using Application;
@@ -65,7 +66,7 @@ namespace Authentication.Application
                 Console.WriteLine("API Error: " + ex.Message);
                 return false;
             }
-            catch (HttpException ex)
+            catch (SmtpException ex)
             {
                 Console.WriteLine("HTTP Error: " + ex.Message);
                 return false;
