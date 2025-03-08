@@ -275,7 +275,6 @@ public async Task<AuthResult> VerifyOtpAsync(string otpCode)
         };
     }
 
-    // Retrieve the user by phone number
     var user = await _userRepo.GetUserByPhoneNumber(phoneNumber);
     
     if (user == null)
@@ -288,7 +287,6 @@ public async Task<AuthResult> VerifyOtpAsync(string otpCode)
         };
     }
 
-    // Retrieve the user's password configuration
     var confPass = await _userPropertyRepo.GetConfigurationPasswordByUserIdAsync(user.Id);
 
     if (confPass == null)
@@ -301,7 +299,6 @@ public async Task<AuthResult> VerifyOtpAsync(string otpCode)
         };
     }
 
-    // Check if the password has expired
     var expirationDate = confPass.CreateDate.AddDays(confPass.ExpireDaysAmount);
     if (expirationDate <= DateTime.UtcNow)
     {
@@ -313,21 +310,16 @@ public async Task<AuthResult> VerifyOtpAsync(string otpCode)
         };
     }
 
-    // Generate the authentication tokens
     var accessToken = _tokenService.GenerateAccessToken(user.Id);
     var refreshToken = _tokenService.GenerateRefreshToken();
 
-    // Reset login attempts for the user
     user.ResetLoginAttempt();
     
-    // Save the changes to the user and user properties
     await _userRepo.SaveChangesAsync();
     await _userPropertyRepo.SaveChangesAsync();
     
-    // Save the OAuth token details
     await SaveOauthTokenAsync(user.Id.ToString(), user.Username, accessToken, refreshToken, tokenType: 1);
 
-    // Return success response with the generated access token
     return new AuthResult
     {
         Success = true,
