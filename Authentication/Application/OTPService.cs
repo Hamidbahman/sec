@@ -1,129 +1,128 @@
-using System;
 using System.Collections.Concurrent;
-using System.Net.Mail;
 using System.Security.Cryptography;
-using System.Threading.Tasks;
 using Application;
+using Authentication.Domain.Repositories;
 using Kavenegar;
-using Kavenegar.Core.Exceptions;
 using Microsoft.Extensions.Options;
 
-namespace Authentication.Application
+public class OtpService
 {
-    public class OtpService
+    private readonly KavenegarApi _api;
+    private readonly string _sender;
+    private readonly IUserRepository _userRepo; 
+    private readonly ConcurrentDictionary<string, OtpInfo> _otpStorage = new();
+
+    public OtpService(IOptions<KavenegarOptions> options, IUserRepository userRepo)
     {
-        private readonly KavenegarApi _api;
-        private readonly string _sender;
-        private readonly ConcurrentDictionary<string, OtpInfo> _otpStorage = new();
-        private readonly ConcurrentDictionary<string, string> _otpToPhoneMap = new();
+        _api = new KavenegarApi(options.Value.ApiKey);
+        _sender = options.Value.Sender;
+        _userRepo = userRepo;
+    }
 
-        public OtpService(IOptions<KavenegarOptions> options)
+    /// <summary>
+    /// Generates a secure 6-digit OTP asynchronously.
+    /// </summary>
+    private async Task<string> GenerateOtpAsync()
+    {
+        return await Task.Run(() =>
         {
-            _api = new KavenegarApi(options.Value.ApiKey);
-            _sender = "2000660110";
+            using var rng = new RNGCryptoServiceProvider ();
+            var bytes = new byte[4];
+            rng.GetBytes(bytes);
+            int value = BitConverter.ToInt32(bytes, 0) & 0x7FFFFFFF;
+            return (value % 900000 + 100000).ToString();
+        });
+    }
+
+    /// <summary>
+    /// Sends an OTP via SMS and stores it with the associated phone number.
+    /// Validates if the phone number exists in the database before sending OTP.
+    /// </summary>
+    public async Task<string> SendSmsAsync(string phoneNumber)
+    {
+
+        if (string.IsNullOrWhiteSpace(phoneNumber))
+        {
+            throw new ArgumentNullException(nameof(phoneNumber), "Phone number cannot be null or empty.");
+        }
+        var user = 
+        await _userRepo.GetUserByPhoneNumber(phoneNumber);
+        if(user == null)
+        {
+            return "No user with this phone number exists";
         }
 
-        /// <summary>
-        /// Generates a secure 6-digit OTP asynchronously.
-        /// </summary>
-        private async Task<string> GenerateOtpAsync()
-        {
-            return await Task.Run(() =>
-            {
-                using var rng = new RNGCryptoServiceProvider();
-                var bytes = new byte[4];
-                rng.GetBytes(bytes);
-                int value = BitConverter.ToInt32(bytes, 0) & 0x7FFFFFFF;
-                return (value % 900000 + 100000).ToString(); 
-            });
-        }
-
-        /// <summary>
-        /// Sends an OTP via SMS and stores it with an expiration time.
-        /// </summary>
-        public async Task<bool> SendSmsAsync(string phoneNumber)
+        try
         {
             string otpCode = await GenerateOtpAsync();
 
-            try
+            var result = await _api.Send(_sender, phoneNumber, otpCode);
+
+            if (result == null)
             {
-                var result = await _api.Send(_sender, phoneNumber, otpCode);
-                Console.WriteLine($"SMS Sent to {phoneNumber}: MessageId={result.Messageid}");
-
-                var otpInfo = new OtpInfo
-                {
-                    Code = otpCode,
-                    ExpiresAt = DateTime.UtcNow.AddMinutes(5)
-                };
-
-                _otpStorage[phoneNumber] = otpInfo;
-                _otpToPhoneMap[otpCode] = phoneNumber;
-                
-                return true;
+                throw new Exception("Failed to send SMS, result from API is null.");
             }
-            catch (ApiException ex)
+
+            Console.WriteLine($"SMS Sent to {phoneNumber}: MessageId={result.Messageid}");
+
+            var otpInfo = new OtpInfo
             {
-                Console.WriteLine("API Error: " + ex.Message);
+                Code = otpCode,
+                ExpiresAt = DateTime.UtcNow.AddMinutes(5),
+                PhoneNumber = phoneNumber 
+            };
+
+            _otpStorage[otpCode] = otpInfo;
+
+            return otpCode;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in SendSmsAsync: {ex.Message}");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Validates if the provided OTP code is correct and not expired.
+    /// </summary>
+    public bool ValidateOtp(string otpCode)
+    {
+        if (_otpStorage.TryGetValue(otpCode, out var otpInfo))
+        {
+            if (otpInfo.ExpiresAt < DateTime.UtcNow)
+            {
+                Console.WriteLine("OTP expired.");
+                _otpStorage.TryRemove(otpCode, out _);
                 return false;
             }
-            catch (SmtpException ex)
-            {
-                Console.WriteLine("HTTP Error: " + ex.Message);
-                return false;
-            }
+
+            return otpInfo.Code == otpCode;
         }
 
-        /// <summary>
-        /// Validates the OTP without requiring a phone number.
-        /// </summary>
-        public bool ValidateOtp(string otpCode)
-        {
-            if (_otpToPhoneMap.TryRemove(otpCode, out string phoneNumber) && _otpStorage.TryRemove(phoneNumber, out OtpInfo otpInfo))
-            {
-                if (otpInfo.ExpiresAt < DateTime.UtcNow)
-                {
-                    return false;
-                }
-                return otpInfo.Code == otpCode;
-            }
-            return false;
-        }
+        Console.WriteLine("OTP not found.");
+        return false; // OTP not found
+    }
 
-        /// <summary>
-        /// Gets the phone number associated with an OTP code.
-        /// </summary>
-        public string GetPhoneNumberByOtp(string otpCode)
+    /// <summary>
+    /// Retrieves the phone number associated with an OTP code.
+    /// </summary>
+    public string GetPhoneNumberByOtp(string otpCode)
+    {
+        if (_otpStorage.TryGetValue(otpCode, out var otpInfo))
         {
-            if (_otpToPhoneMap.TryGetValue(otpCode, out string phoneNumber) && _otpStorage.TryGetValue(phoneNumber, out OtpInfo otpInfo))
-            {
-                return phoneNumber;
-            }
-            return null;
+            return otpInfo.PhoneNumber; 
         }
+        return null; 
+    }
 
-        /// <summary>
-        /// Original validate method for backward compatibility.
-        /// </summary>
-        public bool ValidateOtp(string phoneNumber, string otpReceived)
-        {
-            if (_otpStorage.TryRemove(phoneNumber, out OtpInfo otpInfo))
-            {
-                if (otpInfo.ExpiresAt < DateTime.UtcNow)
-                {
-                    return false;
-                }
-                return otpInfo.Code == otpReceived;
-            }
-            return false;
-        }
-
-        /// <summary>
-        /// Represents OTP information.
-        /// </summary>
-        private class OtpInfo
-        {
-            public string Code { get; set; }
-            public DateTime ExpiresAt { get; set; }
-        }
+    /// <summary>
+    /// Represents OTP information including the associated phone number.
+    /// </summary>
+    private class OtpInfo
+    {
+        public string Code { get; set; }
+        public DateTime ExpiresAt { get; set; }
+        public string PhoneNumber { get; set; } 
     }
 }

@@ -36,6 +36,22 @@ namespace Authentication.Application
             return Unauthorized(new { Message = result.Message });
         }
 
+        [HttpPost("send-otp")]
+        public async Task<IActionResult> SendOtp([FromBody] SendOtpRequest request)
+        {
+            try
+            {
+                var otpCode = await _authService.SendOtpAsync(request.PhoneNumber);
+        
+                return Ok(new { Message = "OTP sent successfully.", OtpCode = otpCode });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { Message = "Failed to send OTP. Please try again later.", Error = ex.Message });
+            }
+        }
+
+
         [HttpPost("verify-otp")]
         public async Task<IActionResult> VerifyOtp([FromBody] OtpRequest request)
         {
@@ -66,6 +82,7 @@ namespace Authentication.Application
             return StatusCode(500, new { Message = "An error occurred.", Error = ex.Message });
         }
     }
+
 }
 
 public class ChangePasswordRequest
@@ -94,7 +111,10 @@ public class ChangePasswordRequest
 
     public class OtpRequest
     {
-        public string Username { get; set; }
         public string OtpCode { get; set; }
     }
 
+    public class SendOtpRequest
+    {
+        public string PhoneNumber{get;set;}
+    }

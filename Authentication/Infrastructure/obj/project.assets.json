@@ -4742,11 +4742,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\hamid.RYMOND\\18\\sec\\authentication\\Infrastructure\\Infrastructure.csproj",
+      "projectUniqueName": "C:\\Users\\hamid.RYMOND\\18\\sec\\Authentication\\Infrastructure\\Infrastructure.csproj",
       "projectName": "Infrastructure",
-      "projectPath": "C:\\Users\\hamid.RYMOND\\18\\sec\\authentication\\Infrastructure\\Infrastructure.csproj",
+      "projectPath": "C:\\Users\\hamid.RYMOND\\18\\sec\\Authentication\\Infrastructure\\Infrastructure.csproj",
       "packagesPath": "C:\\Users\\hamid.RYMOND\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\hamid.RYMOND\\18\\sec\\authentication\\Infrastructure\\obj\\",
+      "outputPath": "C:\\Users\\hamid.RYMOND\\18\\sec\\Authentication\\Infrastructure\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

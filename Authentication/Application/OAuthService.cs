@@ -155,84 +155,104 @@ private static string HashSecret(string secret)
 
 
 
-    public async Task<AuthResult> LoginAsync(string username, string password, string authenticationCode)
+public async Task<AuthResult> LoginAsync(string username, string password, string authenticationCode)
+{
+    var user = await _userRepo.GetByUsernameAsync(username);
+    if (user == null)
     {
-        var user = await _userRepo.GetByUsernameAsync(username);
-        if(user == null)
+        return new AuthResult
         {
-            return new AuthResult {
-                Success = false, 
-                Message = "Invalid username or password",
-                TwoFactorRequired = false};
-        }
-        if(user.LoginAttempt >= 5)
-        {
-            return new AuthResult {
-                Success = false,
-                Message = "Too many failed attempts",
-                TwoFactorRequired = false
-            };
-        }
-        
-        if (!BCrypt.Net.BCrypt.Verify(password , user.UserProperty.Password))
-        {
-            user.IncrementLoginAttempt();
-            return new AuthResult
-            {
-                Success = false,
-                Message = "Invalid username or password",
-                TwoFactorRequired = false
-            };
-        }
-        
-        if (!_authCodes.ContainsKey(authenticationCode))
-        {
-            throw new AuthenticationException("Invalid authentication code");
-        }
+            Success = false,
+            Message = "Invalid username or password",
+            TwoFactorRequired = false
+        };
+    }
 
+    if (user.LoginAttempt >= 5)
+    {
+        return new AuthResult
+        {
+            Success = false,
+            Message = "Too many failed attempts. Account locked.",
+            TwoFactorRequired = false
+        };
+    }
+
+    if (!BCrypt.Net.BCrypt.Verify(password, user.UserProperty.Password))
+    {
         user.IncrementLoginAttempt();
-        var logPol = await _userRepo.GetLoginPoliciesByUserID(user.Id.ToString());
-        if (logPol != null && user.LoginAttempt > 5)
-        {
-            logPol.SetLockType(Domain.Enums.LockTypes.TemporaryLock);
-            throw new AuthenticationException("Account is locked");
-        }
-
-        await _userRepo.SaveChangesAsync();
-
-        if (!user.TwoFactorEnabled)
-        {
-            _authCodes.TryRemove(authenticationCode, out _);
-            var accessToken = _tokenService.GenerateAccessToken(user.Id);
-            var refreshToken = _tokenService.GenerateRefreshToken();
-            
-            user.ResetLoginAttempt();
-            
-            await _userRepo.SaveChangesAsync();
-            await _userPropertyRepo.SaveChangesAsync();
-            
-            await SaveOauthTokenAsync(user.Id.ToString(), username, accessToken, refreshToken, tokenType: 1);
-
-            return new AuthResult
-            {
-                Success = true,
-                Token = accessToken,
-                TwoFactorRequired = false
-            };
-        }
-
-        await _otpService.SendSmsAsync(user.PhoneNumber);
+        await _userRepo.SaveChangesAsync(); 
 
         return new AuthResult
         {
             Success = false,
-            Message = "OTP Required",
-            TwoFactorRequired = true
+            Message = "Invalid username or password",
+            TwoFactorRequired = false
         };
     }
 
+    if (user.TwoFactorEnabled)
+    {
+        if (string.IsNullOrWhiteSpace(authenticationCode) || !_authCodes.ContainsKey(authenticationCode))
+        {
+            return new AuthResult
+            {
+                Success = false,
+                Message = "Invalid authentication code",
+                TwoFactorRequired = true
+            };
+        }
+
+        _authCodes.TryRemove(authenticationCode, out _);
+    }
+
+    user.ResetLoginAttempt();
+
+    var logPol = await _userRepo.GetLoginPoliciesByUserID(user.Id.ToString());
+    if (logPol != null && user.LoginAttempt > 5)
+    {
+        logPol.SetLockType(Domain.Enums.LockTypes.TemporaryLock);
+        await _userRepo.SaveChangesAsync();
+
+        throw new AuthenticationException("Account is temporarily locked due to too many failed attempts.");
+    }
+
+    var accessToken = _tokenService.GenerateAccessToken(user.Id);
+    var refreshToken = _tokenService.GenerateRefreshToken();
+
+    await _userRepo.SaveChangesAsync();
+    await _userPropertyRepo.SaveChangesAsync();
+
+    await SaveOauthTokenAsync(user.Id.ToString(), username, accessToken, refreshToken, tokenType: 1);
+
+    return new AuthResult
+    {
+        Success = true,
+        Token = accessToken,
+        TwoFactorRequired = false 
+    };
+    
+}
+public async Task<string> SendOtpAsync(string phoneNumber)
+{
+    try
+    {
+        var otpCode = await _otpService.SendSmsAsync(phoneNumber); 
+        return otpCode;
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error in SendOtpAsync: {ex.Message}");
+        throw new InvalidOperationException("Failed to send OTP. Please try again later.");
+    }
+}
+
+
+
+
 public async Task<AuthResult> VerifyOtpAsync(string otpCode)
 {
+    // Validate OTP
     if (!_otpService.ValidateOtp(otpCode))
     {
         return new AuthResult
@@ -255,6 +275,7 @@ public async Task<AuthResult> VerifyOtpAsync(string otpCode)
         };
     }
 
+    // Retrieve the user by phone number
     var user = await _userRepo.GetUserByPhoneNumber(phoneNumber);
     
     if (user == null)
@@ -267,6 +288,7 @@ public async Task<AuthResult> VerifyOtpAsync(string otpCode)
         };
     }
 
+    // Retrieve the user's password configuration
     var confPass = await _userPropertyRepo.GetConfigurationPasswordByUserIdAsync(user.Id);
 
     if (confPass == null)
@@ -279,38 +301,43 @@ public async Task<AuthResult> VerifyOtpAsync(string otpCode)
         };
     }
 
-
-        var expirationD = confPass.CreateDate.AddDays(confPass.ExpireDaysAmount);
-        if (expirationD <= DateTime.UtcNow)
-        {
-            return new AuthResult
-            {
-                Success = false,
-                Message = "Password expired. Please change your password.",
-                TwoFactorRequired = false
-            };
-        }
-
-        
-
-        var accessToken = _tokenService.GenerateAccessToken(user.Id);
-        var refreshToken = _tokenService.GenerateRefreshToken();
-
-        user.ResetLoginAttempt();
-        await _userRepo.SaveChangesAsync();
-        await _userPropertyRepo.SaveChangesAsync();
-        
-        await SaveOauthTokenAsync(user.Id.ToString(), user.Username, accessToken, refreshToken, tokenType: 1);
-
+    // Check if the password has expired
+    var expirationDate = confPass.CreateDate.AddDays(confPass.ExpireDaysAmount);
+    if (expirationDate <= DateTime.UtcNow)
+    {
         return new AuthResult
         {
-            Success = true,
-            Token = accessToken,
-            TwoFactorRequired = false,
-            Message = "AccessToken Generated. Authentication Successful",
-            User = UserDetails.FromUser(user)
+            Success = false,
+            Message = "Password expired. Please change your password.",
+            TwoFactorRequired = false
         };
     }
+
+    // Generate the authentication tokens
+    var accessToken = _tokenService.GenerateAccessToken(user.Id);
+    var refreshToken = _tokenService.GenerateRefreshToken();
+
+    // Reset login attempts for the user
+    user.ResetLoginAttempt();
+    
+    // Save the changes to the user and user properties
+    await _userRepo.SaveChangesAsync();
+    await _userPropertyRepo.SaveChangesAsync();
+    
+    // Save the OAuth token details
+    await SaveOauthTokenAsync(user.Id.ToString(), user.Username, accessToken, refreshToken, tokenType: 1);
+
+    // Return success response with the generated access token
+    return new AuthResult
+    {
+        Success = true,
+        Token = accessToken,
+        TwoFactorRequired = false,
+        Message = "AccessToken Generated. Authentication Successful",
+        User = UserDetails.FromUser(user)
+    };
+}
+
 
 
 private async Task SaveOauthTokenAsync(string clientId, string userName, string accessToken, string refreshToken, short tokenType)
