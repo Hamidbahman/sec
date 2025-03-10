@@ -229,7 +229,9 @@ public async Task<AuthResult> LoginAsync(string username, string password, strin
     {
         Success = true,
         Token = accessToken,
-        TwoFactorRequired = false 
+        TwoFactorRequired = false,
+        Message = "AccessToken Generated. Authentication Successful",
+        User = UserDetails.FromUser(user)
     };
     
 }

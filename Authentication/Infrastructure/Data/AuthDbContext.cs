@@ -710,7 +710,7 @@ public class AutheDbContext : DbContext
             #region SeedConfigurationPassword
 
             modelBuilder.Entity<ConfigurationPassword>().HasData(new ConfigurationPassword(
-                userProperties: new List<UserProperty>(), // Empty list as seeding relationships must be handled separately
+                userProperties: new List<UserProperty>(), 
                 id: 2,
                 isComplex: true,
                 mustBeChangedInFirstLogin: true,
@@ -724,7 +724,7 @@ public class AutheDbContext : DbContext
                 expireDaysAmount: 90,
                 redirectToCustomUrlAfterChangePass: false,
                 urlAfterChangePass: "",
-                applicationId: 2, // Ensure this matches an existing Application ID
+                applicationId: 2, 
                 twoFactorEnabled: true
             ));
 
@@ -739,9 +739,9 @@ public class AutheDbContext : DbContext
                 id: 2,
                 captchaNeeded: false,
                 failedLoginAmountBeforeCaptcha: 3,
-                lockTimeInterval: 100, // Example: 5 minutes lock time
-                lockType: Authentication.Domain.Enums.LockTypes.None, // Ensure this enum exists
-                applicationId: 2 // Ensure this ApplicationId exists in the Application table
+                lockTimeInterval: 100, 
+                lockType: Authentication.Domain.Enums.LockTypes.None, 
+                applicationId: 2 
             ));
 
             #endregion
@@ -751,10 +751,10 @@ public class AutheDbContext : DbContext
             #region SeedLockPolicy
             modelBuilder.Entity<LoginPolicy>().HasData(new LoginPolicy(
                 id: 2,
-                lockTypes: LockTypes.None, // Ensure this enum exists and is handled correctly
-                userId: 2, // Ensure a User with this ID exists
+                lockTypes: LockTypes.None, 
+                userId: 2, 
                 lockStartDateTime: new DateTime(2024, 1, 1, 12, 0,0, DateTimeKind.Utc),
-                lockEndDateTime: new DateTime(2024, 1, 1, 12, 0,0, DateTimeKind.Utc) // Example: 30-minute lock
+                lockEndDateTime: new DateTime(2024, 1, 1, 12, 0,0, DateTimeKind.Utc) 
             ));
 
 

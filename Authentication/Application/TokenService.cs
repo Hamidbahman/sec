@@ -2,137 +2,99 @@ using System;
 using System.Text;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Configuration;
-using System.Text.Json;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
 
-namespace Application;
-
-public class TokenService
+namespace Application
 {
-    private readonly byte[] _secretKey;
-    private const int ACCESS_TOKEN_EXPIRATION_MINUTES = 30;
-    private const int REFRESH_TOKEN_EXPIRATION_DAYS = 7;
-
-    public class TokenValidationResult
+    public class TokenService
     {
-        public bool IsValid { get; set; }
-        public long? UserId { get; set; }
-        public DateTime? IssuedAt { get; set; }
-        public DateTime? ExpiresAt { get; set; }
-    }
+        private readonly byte[] _secretKey;
+        private const int ACCESS_TOKEN_EXPIRATION_MINUTES = 30;
+        private const int REFRESH_TOKEN_EXPIRATION_DAYS = 7;
 
-    public TokenService(IConfiguration configuration)
-    {
-        var secretKeyString = configuration["AccessToken:SecretKey"] 
-            ?? throw new InvalidOperationException("Secret key is missing");
-        
-        // Ensure secret key is at least 32 bytes (256 bits)
-        _secretKey = DeriveKey(secretKeyString);
-    }
-
-    private byte[] DeriveKey(string input)
-    {
-        using var pbkdf2 = new Rfc2898DeriveBytes(
-            Encoding.UTF8.GetBytes(input), 
-            Encoding.UTF8.GetBytes("TokenServiceSalt"), 
-            iterations: 10000, 
-            HashAlgorithmName.SHA256
-        );
-        return pbkdf2.GetBytes(32);
-    }
-
-    public string GenerateAccessToken(long userId)
-    {
-        var claims = new Dictionary<string, string>
+        public class TokenValidationResult
         {
-            ["userId"] = userId.ToString(),
-            ["issued"] = DateTime.UtcNow.Ticks.ToString(),
-            ["expiration"] = DateTime.UtcNow.AddMinutes(ACCESS_TOKEN_EXPIRATION_MINUTES).Ticks.ToString(),
-            ["jti"] = Guid.NewGuid().ToString()
-        };
+            public bool IsValid { get; set; }
+            public long? UserId { get; set; }
+            public DateTime? IssuedAt { get; set; }
+            public DateTime? ExpiresAt { get; set; }
+        }
 
-        string claimsJson = JsonSerializer.Serialize(claims);
-        byte[] claimsBytes = Encoding.UTF8.GetBytes(claimsJson);
-
-        using var hmac = new HMACSHA512(_secretKey);
-        byte[] signature = hmac.ComputeHash(claimsBytes);
-
-        string encodedClaims = Convert.ToBase64String(claimsBytes);
-        string encodedSignature = Convert.ToBase64String(signature);
-
-        return $"{encodedClaims}.{encodedSignature}";
-    }
-
-    public string GenerateRefreshToken()
-    {
-        byte[] randomBytes = new byte[64]; 
-        using var rng = RandomNumberGenerator.Create();
-        rng.GetBytes(randomBytes);
-
-        using var hmac = new HMACSHA512(_secretKey);
-        byte[] hashedBytes = hmac.ComputeHash(randomBytes);
-
-        return Convert.ToBase64String(hashedBytes);
-    }
-
-    public TokenValidationResult ValidateAccessToken(string token)
-    {
-        try 
+        public TokenService(IConfiguration configuration)
         {
-            var parts = token.Split('.');
-            if (parts.Length != 2)
-                return new TokenValidationResult { IsValid = false };
+            var secretKeyString = configuration["AccessToken:SecretKey"]
+                ?? throw new InvalidOperationException("Secret key is missing");
 
-            byte[] claimsBytes = Convert.FromBase64String(parts[0]);
-            byte[] providedSignature = Convert.FromBase64String(parts[1]);
+            _secretKey = Encoding.UTF8.GetBytes(secretKeyString);
+        }
 
-            // Verify signature
-            using var hmac = new HMACSHA512(_secretKey);
-            byte[] computedSignature = hmac.ComputeHash(claimsBytes);
+        public string GenerateAccessToken(long userId)
+        {
+            var claims = new[]
+            {
+                new System.Security.Claims.Claim("userId", userId.ToString()),
+                new System.Security.Claims.Claim("jti", Guid.NewGuid().ToString())
+            };
 
-            if (!SecurityHelper.SecureCompare(computedSignature, providedSignature))
-                return new TokenValidationResult { IsValid = false };
+            var key = new SymmetricSecurityKey(_secretKey);
+            var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+            var expirationTime = DateTime.UtcNow.AddMinutes(ACCESS_TOKEN_EXPIRATION_MINUTES);
 
-            var claims = JsonSerializer.Deserialize<Dictionary<string, string>>(
-                Encoding.UTF8.GetString(claimsBytes)
+            var token = new JwtSecurityToken(
+                issuer: "yourIssuer", 
+                audience: "yourAudience", 
+                claims: claims,
+                expires: expirationTime,
+                signingCredentials: credentials
             );
 
-            long userId = long.Parse(claims["userId"]);
-            long issuedTicks = long.Parse(claims["issued"]);
-            long expirationTicks = long.Parse(claims["expiration"]);
-
-            var issuedAt = new DateTime(issuedTicks);
-            var expiresAt = new DateTime(expirationTicks);
-
-            if (DateTime.UtcNow > expiresAt)
-                return new TokenValidationResult { IsValid = false };
-
-            return new TokenValidationResult 
-            { 
-                IsValid = true, 
-                UserId = userId,
-                IssuedAt = issuedAt,
-                ExpiresAt = expiresAt
-            };
+            return new JwtSecurityTokenHandler().WriteToken(token);
         }
-        catch
+
+        public string GenerateRefreshToken()
         {
-            return new TokenValidationResult { IsValid = false };
+            byte[] randomBytes = new byte[64]; 
+            using var rng = RandomNumberGenerator.Create();
+            rng.GetBytes(randomBytes);
+
+            return Convert.ToBase64String(randomBytes);
         }
-    }
 
-    private static class SecurityHelper
-    {
-        public static bool SecureCompare(byte[] a, byte[] b)
+        public TokenValidationResult ValidateAccessToken(string token)
         {
-            if (a == null || b == null || a.Length != b.Length)
-                return false;
-
-            uint diff = 0;
-            for (int i = 0; i < a.Length; i++)
+            try
             {
-                diff |= (uint)(a[i] ^ b[i]);
+                var tokenHandler = new JwtSecurityTokenHandler();
+                var key = new SymmetricSecurityKey(_secretKey);
+                var validationParameters = new TokenValidationParameters
+                {
+                    IssuerSigningKey = key,
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidIssuer = "yourIssuer",
+                    ValidAudience = "yourAudience",
+                    ClockSkew = TimeSpan.Zero 
+                };
+
+                SecurityToken validatedToken;
+                var principal = tokenHandler.ValidateToken(token, validationParameters, out validatedToken);
+                
+                var jwtToken = (JwtSecurityToken)validatedToken;
+                var userId = long.Parse(principal.FindFirst("userId")?.Value);
+
+                return new TokenValidationResult
+                {
+                    IsValid = true,
+                    UserId = userId,
+                    IssuedAt = jwtToken.ValidFrom,
+                    ExpiresAt = jwtToken.ValidTo
+                };
             }
-            return diff == 0;
+            catch
+            {
+                return new TokenValidationResult { IsValid = false };
+            }
         }
     }
 }

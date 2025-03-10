@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Authentication.Domain.Enums;
 
 namespace Authentication.Domain.Entities;
 
@@ -35,7 +36,7 @@ namespace Authentication.Domain.Entities;
         [StringLength(50)]
         public string Scheduled { get; private set; }
 
-        public short Status { get; private set; }
+        public StatusTypes Status { get; private set; }
 
         public bool LockEnabled { get; private set; }
 
@@ -66,7 +67,7 @@ namespace Authentication.Domain.Entities;
             string? ipRange = null,
             bool isAutoApprove = false,
             string? scheduled = null,
-            short status = 0,
+            StatusTypes status = StatusTypes.Active,
             bool lockEnabled = true,
             string? description = null,
             DateTime? createDate = null,
